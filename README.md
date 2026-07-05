@@ -1,6 +1,11 @@
-# 个股雷达 · 公司深度分析 / Stock Radar
+# 个股雷达 · 板块情绪 + 公司深度分析 / Stock Radar
 
-一个**完全独立、可直接在浏览器打开**的公司深度分析仪表盘，顶部一键切换 **A 股 / 美股**。点击任一公司，即弹出该公司的：
+一个**完全独立、可直接在浏览器打开**的量化看板，左侧导航切换四大栏目，顶部一键切 **A 股 / 美股** + **日/夜/跟随系统** 主题 + **中/英文**：
+
+- **板块情绪** —— 板块热力块 + **板块指数 + 情绪指数叠加走势图**（情绪指数 0-100，自研：RSI/均线/量能/区间位置加权）
+- **板块资金流** —— 资金净流向**综合评分 TOP10**（正向/负向）+ 指标卡（正负家数/最强最弱板块/总净流）
+- **四象限分类** —— 资金净流 × 情绪强弱，把板块分到 强势吸金/弱势吸金/强势流出/弱势流出 四象限
+- **个股分析** —— 点任一公司，弹出该公司的：
 
 1. **公司简介**（业务简介 + 管理层动向）
 2. **各项业务营收占比**（主营构成饼图，收入占比 / 毛利率，增速异常项自动标注）
@@ -26,14 +31,20 @@
 ```
 stock-radar/
 ├─ docs/                 # 直接打开 / GitHub Pages 根目录
-│  ├─ index.html         # 仪表盘 (自包含: Tailwind + ECharts CDN)
-│  ├─ data.js            # 由管道生成: window.__RADAR__ = { meta, stocks[], profiles{} }
+│  ├─ index.html         # 仪表盘 (自包含: Tailwind + ECharts CDN; 左侧导航四栏)
+│  ├─ data.js            # A股个股档案:  window.__RADAR__
+│  ├─ data_us.js         # 美股个股档案: window.__RADAR_US__
+│  ├─ sector.js          # 板块情绪:     window.__SECTORS__
 │  └─ .nojekyll
 ├─ pipeline/             # 自包含数据管道 (不依赖任何外部仓库)
 │  ├─ datasource.py      # akshare 访问层 (UA注入 / 限频重试 / 本地缓存 / 列名匹配)
-│  ├─ profile.py         # 公司深度档案 (上面 9 项的数据组装, 缺失安全)
-│  ├─ watchlist.py       # 默认关注池 (改这里换成你的自选股)
-│  └─ build_data.py      # 生成 docs/data.js
+│  ├─ profile.py         # A股公司深度档案 (缺失安全)
+│  ├─ datasource_us.py   # yfinance + FINRA 场外空头
+│  ├─ profile_us.py      # 美股公司深度档案 (真实期权/暗池/ISS治理)
+│  ├─ sector.py          # 板块情绪引擎 (情绪指数/综合评分/四象限)
+│  ├─ watchlist.py       # A股默认关注池
+│  ├─ watchlist_us.py    # 美股默认关注池
+│  └─ build_data.py      # 生成 docs/data.js / data_us.js
 ├─ requirements.txt
 └─ README.md
 ```
@@ -50,6 +61,9 @@ python -m pipeline.build_data 600519 000858 300750   # 或只拉指定代码
 # 美股 (yfinance) -> docs/data_us.js
 python -m pipeline.build_data us                     # 默认关注池 pipeline/watchlist_us.py
 python -m pipeline.build_data us AAPL MSFT NVDA      # 或只拉指定代码
+
+# 板块情绪 (A股行业+概念板块, 同花顺) -> docs/sector.js
+python -m pipeline.sector                            # 板块热力/情绪叠加/资金流评分/四象限
 ```
 
 跑完会重写对应的 `docs/data.js` / `docs/data_us.js`，刷新页面即可，顶部切 A股/美股。想换成自己的股票池，编辑 `pipeline/watchlist.py`（A 股）或 `pipeline/watchlist_us.py`（美股）再重跑。

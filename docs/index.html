@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script src="data.js"></script>
 <script src="data_us.js"></script>
+<script src="sector.js"></script>
 <style>
   :root{
     --bg:#0a1020; --card:#111a2e; --card2:#0e1830; --border:#1e2a44; --text:#e5e7eb;
@@ -71,10 +72,54 @@
   body.light .text-slate-300,body.light .text-slate-200,body.light .text-slate-100{color:#1e293b!important}
   body.light .text-slate-500{color:#94a3b8!important}
   body.light .text-sky-300{color:#0369a1!important}
+  /* ===== 侧边栏 + 视图布局 ===== */
+  .app-shell{ display:flex; align-items:flex-start; gap:0; }
+  #sidebar{ width:200px; flex:none; position:sticky; top:0; align-self:flex-start; height:100vh;
+    background:var(--card2); border-right:1px solid var(--border); display:flex; flex-direction:column;
+    padding:16px 12px; gap:6px; }
+  #sidebar .logo{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:16px; color:var(--text);
+    padding:4px 8px 14px; }
+  .navitem{ display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:10px; cursor:pointer;
+    color:var(--dim); font-size:14px; font-weight:600; border:1px solid transparent; transition:background .15s,color .15s; }
+  .navitem:hover{ background:var(--rowhover); color:var(--text); }
+  .navitem.on{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .navitem .ico{ width:18px; text-align:center; flex:none; }
+  .main-area{ flex:1; min-width:0; }
+  .view{ animation:fadein .18s ease; }
+  .view.hidden{ display:none; }
+  /* 热力瓦片 */
+  .heat-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .heat-tile{ border:1px solid var(--border); border-radius:12px; padding:11px 12px; cursor:pointer;
+    transition:transform .12s,border-color .12s,box-shadow .12s; }
+  .heat-tile:hover{ transform:translateY(-2px); box-shadow:0 8px 22px -12px rgba(56,189,248,.45); }
+  .heat-tile.sel{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  .heat-name{ font-weight:700; font-size:13.5px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .metric-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .rank-row{ cursor:pointer; }
+  .rank-row:hover{ background:var(--rowhover); }
+  .scorebar{ display:inline-block; height:6px; border-radius:9999px; background:var(--accent); vertical-align:middle; }
+  @media(max-width:860px){
+    .app-shell{ flex-direction:column; }
+    #sidebar{ width:100%; height:auto; position:static; flex-direction:row; flex-wrap:wrap; align-items:center;
+      border-right:none; border-bottom:1px solid var(--border); padding:10px; gap:6px; }
+    #sidebar .logo{ width:100%; padding:2px 6px 8px; }
+    .navitem{ flex:1 1 auto; justify-content:center; padding:8px 10px; font-size:13px; }
+  }
 </style>
 </head>
 <body class="min-h-screen">
-<div class="max-w-[1500px] mx-auto px-4 md:px-6 py-5">
+<div class="app-shell">
+
+  <!-- 左侧导航 -->
+  <nav id="sidebar">
+    <div class="logo"><span style="color:var(--accent)">◉</span> <span data-i18n="app_name">板块情绪雷达</span></div>
+    <div class="navitem" data-view="sentiment"><span class="ico">🔥</span><span data-i18n="nav_sentiment">板块情绪</span></div>
+    <div class="navitem" data-view="flow"><span class="ico">💰</span><span data-i18n="nav_flow">板块资金流</span></div>
+    <div class="navitem" data-view="quad"><span class="ico">🎯</span><span data-i18n="nav_quad">四象限分类</span></div>
+    <div class="navitem" data-view="stocks"><span class="ico">📈</span><span data-i18n="nav_stocks">个股分析</span></div>
+  </nav>
+
+<div class="main-area max-w-[1500px] mx-auto px-4 md:px-6 py-5">
 
   <!-- 标题 -->
   <header class="flex items-start justify-between flex-wrap gap-3 mb-4">
@@ -100,20 +145,86 @@
        style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.06);color:#d9a441"
        id="disclaimer" data-i18n="disclaimer">加载中…</div>
 
-  <!-- 控制条 -->
-  <section class="flex items-center gap-2 flex-wrap mb-4">
-    <input id="search" class="w-56" placeholder="搜索 代码 / 名称" data-i18n-ph="search_ph" />
-    <select id="filterSector"><option value="">全部行业</option></select>
-    <span id="countLabel" class="text-sm text-slate-400"></span>
+  <!-- ============ 视图 1: 板块情绪 ============ -->
+  <section id="viewSentiment" class="view hidden">
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+      <h2 class="sec-title text-lg" data-i18n="view_sentiment_t">板块情绪雷达 · 热力</h2>
+      <div class="flex gap-1.5">
+        <button class="segbtn kind-btn" data-kind="industry" data-i18n="kind_ind">行业</button>
+        <button class="segbtn kind-btn on" data-kind="concept" data-i18n="kind_con">概念</button>
+      </div>
+    </div>
+    <div class="text-xs text-slate-500 mb-3" id="sentHeatNote" data-i18n="heat_note">按 |资金净流| 排序取前 18 板块；涨红跌绿，右下为自研情绪指数(0-100)。点击瓦片查看叠加图。</div>
+    <div id="sentHeat" class="heat-grid mb-5"></div>
+    <div class="card p-4 mb-4">
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
+        <h3 class="sec-title" id="sentOverlayTitle" data-i18n="overlay_t">板块指数 + 情绪指数叠加图</h3>
+        <div class="flex gap-1.5">
+          <button class="segbtn tr-btn on" data-tr="60" data-i18n="tr_3m">近3月</button>
+          <button class="segbtn tr-btn" data-tr="120" data-i18n="tr_6m">近6月</button>
+          <button class="segbtn tr-btn" data-tr="250" data-i18n="tr_1y">近1年</button>
+          <button class="segbtn tr-btn" data-tr="0" data-i18n="tr_all">全部</button>
+        </div>
+      </div>
+      <div class="text-xs text-slate-500 mb-2" data-i18n="overlay_note">左轴=板块指数(红)，右轴=情绪指数0-100(蓝)。</div>
+      <div id="sentOverlay" style="height:360px"></div>
+    </div>
+    <div class="text-xs text-slate-500 mb-8" id="sentMethod"></div>
   </section>
 
-  <!-- 个股网格 -->
-  <section id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></section>
-  <div id="emptyHint" class="text-center text-slate-500 py-10 hidden" data-i18n="empty">
-    暂无个股数据。运行 <code>python -m pipeline.build_data</code> 生成 docs/data.js。</div>
+  <!-- ============ 视图 2: 板块资金流 ============ -->
+  <section id="viewFlow" class="view hidden">
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+      <h2 class="sec-title text-lg" data-i18n="view_flow_t">板块资金流 · 综合评分</h2>
+      <div class="flex gap-1.5">
+        <button class="segbtn kindf-btn" data-kind="industry" data-i18n="kind_ind">行业</button>
+        <button class="segbtn kindf-btn on" data-kind="concept" data-i18n="kind_con">概念</button>
+      </div>
+    </div>
+    <div id="flowCards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5"></div>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-8">
+      <div class="card p-4">
+        <h3 class="sec-title mb-2"><span data-i18n="rank_pos_t">正向综合评分 TOP10</span></h3>
+        <div id="flowPos" class="overflow-x-auto"></div>
+      </div>
+      <div class="card p-4">
+        <h3 class="sec-title mb-2"><span data-i18n="rank_neg_t">负向综合评分 TOP10</span></h3>
+        <div id="flowNeg" class="overflow-x-auto"></div>
+      </div>
+    </div>
+  </section>
 
-  <p class="text-xs text-slate-500 text-center my-8" data-i18n="footer">
-    本页数据仅供研究，不构成投资建议 · 暗池以大宗交易近似、期权博弈以融资融券近似（A股代理指标）。</p>
+  <!-- ============ 视图 3: 四象限分类 ============ -->
+  <section id="viewQuad" class="view hidden">
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+      <h2 class="sec-title text-lg" data-i18n="view_quad_t">四象限分类 · 资金 × 情绪</h2>
+      <div class="flex gap-1.5">
+        <button class="segbtn kindq-btn" data-kind="industry" data-i18n="kind_ind">行业</button>
+        <button class="segbtn kindq-btn on" data-kind="concept" data-i18n="kind_con">概念</button>
+      </div>
+    </div>
+    <div class="text-xs text-slate-500 mb-3" data-i18n="quad_note">横轴=资金净流(亿)，纵轴=情绪(0-100)；分界线 净流=0 / 情绪=50。气泡大小≈成分股数量。</div>
+    <div class="card p-4 mb-8"><div id="quadChart" style="height:460px"></div></div>
+  </section>
+
+  <!-- ============ 视图 4: 个股分析 ============ -->
+  <section id="viewStocks" class="view hidden">
+    <!-- 控制条 -->
+    <section class="flex items-center gap-2 flex-wrap mb-4">
+      <input id="search" class="w-56" placeholder="搜索 代码 / 名称" data-i18n-ph="search_ph" />
+      <select id="filterSector"><option value="">全部行业</option></select>
+      <span id="countLabel" class="text-sm text-slate-400"></span>
+    </section>
+
+    <!-- 个股网格 -->
+    <section id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></section>
+    <div id="emptyHint" class="text-center text-slate-500 py-10 hidden" data-i18n="empty">
+      暂无个股数据。运行 <code>python -m pipeline.build_data</code> 生成 docs/data.js。</div>
+
+    <p class="text-xs text-slate-500 text-center my-8" data-i18n="footer">
+      本页数据仅供研究，不构成投资建议 · 暗池以大宗交易近似、期权博弈以融资融券近似（A股代理指标）。</p>
+  </section>
+</div>
 </div>
 
 <!-- 公司分析抽屉 -->
@@ -214,6 +325,7 @@
   "use strict";
   const DATASETS = { A: (window.__RADAR__)||{meta:{}, stocks:[], profiles:{}},
                      US:(window.__RADAR_US__)||{meta:{}, stocks:[], profiles:{}} };
+  const SECT = window.__SECTORS__ || {meta:{},industry:[],concept:[],ranking:{},quadrant:{}};
   const MARKET_KEY="radar_market_v1";
   let MARKET="A"; try{ MARKET=localStorage.getItem(MARKET_KEY)||"A"; }catch(e){}
   if(MARKET!=="US") MARKET="A";
@@ -313,6 +425,25 @@
       dark_title:"暗池 / 场外交易", dark_metric:"场外卖空占比",
       dark_note:'来源 FINRA 场外/暗池成交中标记为卖空的比例 —— 公开数据最常用的"暗池活动"代理；40%~60% 属常态（大量来自做市商双边报价）；单日绝对值不构成方向信号。',
       no_dark:"暂无 FINRA 数据",
+      // ===== 板块情绪雷达 (新增) =====
+      app_name:"板块情绪雷达",
+      nav_sentiment:"板块情绪", nav_flow:"板块资金流", nav_quad:"四象限分类", nav_stocks:"个股分析",
+      kind_ind:"行业", kind_con:"概念",
+      view_sentiment_t:"板块情绪雷达 · 热力", view_flow_t:"板块资金流 · 综合评分", view_quad_t:"四象限分类 · 资金 × 情绪",
+      heat_note:"按 |资金净流| 排序取前 18 板块；涨红跌绿，右下为自研情绪指数(0-100)。点击瓦片查看叠加图。",
+      overlay_t:"板块指数 + 情绪指数叠加图",
+      overlay_note:"左轴=板块指数(红)，右轴=情绪指数0-100(蓝)。",
+      overlay_idx:"板块指数", overlay_senti:"情绪指数",
+      no_hist:"暂无该板块指数历史",
+      tr_3m:"近3月", tr_6m:"近6月", tr_1y:"近1年", tr_all:"全部",
+      senti_now:"情绪",
+      rank_pos_t:"正向综合评分 TOP10", rank_neg_t:"负向综合评分 TOP10",
+      rk_rank:"排名", rk_board:"板块", rk_score:"综合评分", rk_net:"净额(亿)", rk_pct:"涨跌幅", rk_senti:"情绪", rk_breadth:"广度",
+      card_trade_date:"最近交易日", card_pos:"净流入正家数", card_neg:"净流入负家数",
+      card_strong:"正向最强", card_weak:"负向最弱", card_totalnet:"总净流向",
+      quad_note:"横轴=资金净流(亿)，纵轴=情绪(0-100)；分界线 净流=0 / 情绪=50。气泡大小≈成分股数量。",
+      quad_si:"强势吸金", quad_so:"强势流出", quad_wi:"弱势吸金", quad_wo:"弱势流出",
+      quad_net:"资金净流", quad_senti:"情绪", quad_comp:"成分股",
     },
     en:{
       title:"Stock Radar · Company Deep-Dive",
@@ -392,6 +523,25 @@
       dark_title:"Dark Pool / Off-Exchange", dark_metric:"Off-exchange short-volume %",
       dark_note:'FINRA off-exchange short-volume % — the common public "dark-pool activity" proxy; 40–60% is normal (much is market-maker two-sided quoting); a single day is not a directional signal.',
       no_dark:"No FINRA data",
+      // ===== Sector sentiment radar (new) =====
+      app_name:"Sector Sentiment Radar",
+      nav_sentiment:"Sentiment", nav_flow:"Money Flow", nav_quad:"Quadrants", nav_stocks:"Stocks",
+      kind_ind:"Industry", kind_con:"Concept",
+      view_sentiment_t:"Sector Sentiment · Heatmap", view_flow_t:"Sector Money Flow · Score", view_quad_t:"Quadrants · Flow × Sentiment",
+      heat_note:"Top 18 boards by |net flow|; up=red / down=green, bottom-right is our in-house sentiment index (0-100). Click a tile for the overlay.",
+      overlay_t:"Sector Index + Sentiment Index",
+      overlay_note:"Left axis = sector index (red), right axis = sentiment 0-100 (blue).",
+      overlay_idx:"Sector index", overlay_senti:"Sentiment",
+      no_hist:"No index history for this board",
+      tr_3m:"3M", tr_6m:"6M", tr_1y:"1Y", tr_all:"All",
+      senti_now:"Sentiment",
+      rank_pos_t:"Positive Score TOP10", rank_neg_t:"Negative Score TOP10",
+      rk_rank:"#", rk_board:"Board", rk_score:"Score", rk_net:"Net(00M)", rk_pct:"Chg%", rk_senti:"Senti", rk_breadth:"Breadth",
+      card_trade_date:"Latest trade date", card_pos:"Boards net-in +", card_neg:"Boards net-in −",
+      card_strong:"Strongest", card_weak:"Weakest", card_totalnet:"Total net flow",
+      quad_note:"X = net flow (00M CNY), Y = sentiment (0-100); dividers at net=0 / sentiment=50. Bubble size ≈ constituent count.",
+      quad_si:"Strong Inflow", quad_so:"Strong Outflow", quad_wi:"Weak Inflow", quad_wo:"Weak Outflow",
+      quad_net:"Net flow", quad_senti:"Sentiment", quad_comp:"Constituents",
     }
   };
   function t(k){ const d=T[LANG]; return (d&&d[k]!=null)?d[k]:(T.zh[k]!=null?T.zh[k]:k); }
@@ -407,7 +557,7 @@
   }
   function setMarketBtnLabel(){ const b=$("#marketBtn"); if(b) b.textContent = isUS()?t("mkt_us"):t("mkt_a"); }
   function applyLang(){
-    applyStaticI18n(); renderMeta(); renderGrid();
+    applyStaticI18n(); renderMeta(); renderGrid(); renderView();
     if(curCode && !$("#drawer").classList.contains("translate-x-full")) openDrawer(curCode);
   }
 
@@ -424,8 +574,8 @@
     try{ localStorage.setItem(THEME_KEY, themeMode); }catch(e){}
   }
   $("#themeBtn").onclick=()=>{ themeMode = themeMode==="dark"?"light":(themeMode==="light"?"auto":"dark");
-    applyTheme(); if(curCode && !$("#drawer").classList.contains("translate-x-full")) openDrawer(curCode); };
-  if(mqLight){ const onMq=()=>{ if(themeMode==="auto"){ applyTheme();
+    applyTheme(); renderView(); if(curCode && !$("#drawer").classList.contains("translate-x-full")) openDrawer(curCode); };
+  if(mqLight){ const onMq=()=>{ if(themeMode==="auto"){ applyTheme(); renderView();
       if(curCode && !$("#drawer").classList.contains("translate-x-full")) openDrawer(curCode); } };
     if(mqLight.addEventListener) mqLight.addEventListener("change", onMq); else if(mqLight.addListener) mqLight.addListener(onMq); }
   function ec(){ return document.body.classList.contains("light")?null:"dark"; }
@@ -926,10 +1076,233 @@
   // ---- 市场切换 (A / US) ----
   $("#marketBtn").onclick=()=>{ MARKET=isUS()?"A":"US"; switchMarket(); };
 
-  window.addEventListener("resize", ()=>{ Object.keys(profCharts).forEach(k=>{ if(profCharts[k]) profCharts[k].resize(); }); });
+  // ================================================================
+  // ======  板块情绪雷达 (视图: 情绪 / 资金流 / 四象限 / 个股)  ======
+  // ================================================================
+  const VIEW_KEY="radar_view_v1";
+  let VIEW="sentiment"; try{ VIEW=localStorage.getItem(VIEW_KEY)||"sentiment"; }catch(e){}
+  if(["sentiment","flow","quad","stocks"].indexOf(VIEW)<0) VIEW="sentiment";
+  // 板块专用的"亿"格式 (数据恒为 A股人民币, 不随 isUS() 变化)
+  function syi(v,d=2){ if(!isNum(v)) return dash;
+    if(LANG==="en"){ const b=v/10; return (Math.abs(b)>=100?b.toFixed(0):b.toFixed(1))+"B"; }
+    return v.toFixed(d)+"亿"; }
+  // 涨红跌绿的颜色 (跟随主题深浅)
+  function rgColor(v){ const light=document.body.classList.contains("light");
+    if(!isNum(v)||v===0) return "var(--muted)";
+    return v>0 ? (light?"#ef4444":"#f87171") : (light?"#16a34a":"#4ade80"); }
+  function boardList(kind){ return (kind==="industry"?SECT.industry:SECT.concept)||[]; }
+
+  // 板块图表实例 (与抽屉 profCharts 分离; 各自 dispose)
+  const sectCharts={};
+  function scInit(sel,key){ if(sectCharts[key]){ sectCharts[key].dispose(); sectCharts[key]=null; }
+    const el=$(sel); if(!el) return null; el.innerHTML=""; if(!hasECharts) return null;
+    const ch=echarts.init(el, ec()); sectCharts[key]=ch; return ch; }
+  function disposeSect(){ Object.keys(sectCharts).forEach(k=>{ if(sectCharts[k]){ sectCharts[k].dispose(); sectCharts[k]=null; } }); }
+
+  // ----- 视图状态 -----
+  const sentState={ kind:"concept", sel:null, tr:60 };
+  const flowState={ kind:"concept" };
+  const quadState={ kind:"concept" };
+
+  function setActiveNav(){
+    document.querySelectorAll("#sidebar .navitem").forEach(el=>el.classList.toggle("on", el.dataset.view===VIEW));
+    ["sentiment","flow","quad","stocks"].forEach(v=>{
+      const el=$("#view"+v.charAt(0).toUpperCase()+v.slice(1));
+      if(el) el.classList.toggle("hidden", v!==VIEW);
+    });
+  }
+  function renderView(){
+    disposeSect();
+    setActiveNav();
+    if(VIEW==="sentiment") renderSentiment();
+    else if(VIEW==="flow") renderFlow();
+    else if(VIEW==="quad") renderQuad();
+    // stocks view already rendered via renderGrid; ensure grid populated
+    // (charts auto-resize handled globally)
+  }
+  function switchView(v){
+    if(["sentiment","flow","quad","stocks"].indexOf(v)<0) v="sentiment";
+    VIEW=v; try{ localStorage.setItem(VIEW_KEY, VIEW); }catch(e){}
+    renderView();
+  }
+  document.querySelectorAll("#sidebar .navitem").forEach(el=>{ el.onclick=()=>switchView(el.dataset.view); });
+
+  // ===================== 视图1: 板块情绪 =====================
+  function firstWithHist(kind){ const L=boardList(kind); const h=L.filter(b=>b.hist&&b.hist.dates&&b.hist.dates.length);
+    return h.length?h[0].name:(L[0]?L[0].name:null); }
+  function findBoard(kind,name){ return boardList(kind).find(b=>b.name===name)||null; }
+  function heatTop(kind){ return boardList(kind).slice().sort((a,b)=>Math.abs(b.net||0)-Math.abs(a.net||0)).slice(0,18); }
+
+  function renderSentiment(){
+    // 更新 kind 按钮
+    document.querySelectorAll(".kind-btn").forEach(b=>b.classList.toggle("on", b.dataset.kind===sentState.kind));
+    document.querySelectorAll(".tr-btn").forEach(b=>b.classList.toggle("on", +b.dataset.tr===sentState.tr));
+    // 自研情绪方法说明
+    const mn=$("#sentMethod"); if(mn) mn.textContent = (SECT.meta&&SECT.meta.note)?("ⓘ "+SECT.meta.note):"";
+    // 热力瓦片
+    const tiles=heatTop(sentState.kind);
+    // 选中的板块: 优先保留当前选中且仍在同 kind, 否则取按|net|排序中首个有 hist 的
+    const withHist = tiles.filter(b=>b.hist&&b.hist.dates&&b.hist.dates.length);
+    if(!sentState.sel || !findBoard(sentState.kind, sentState.sel)){
+      sentState.sel = (withHist[0]&&withHist[0].name) || firstWithHist(sentState.kind);
+    }
+    const heat=$("#sentHeat");
+    heat.innerHTML = tiles.map(b=>{
+      const p=b.pct, col=rgColor(p);
+      const light=document.body.classList.contains("light");
+      // 背景按 pct 强度着色
+      const inten=isNum(p)?Math.min(1,Math.abs(p)/6):0;
+      const base = isNum(p)&&p>0 ? "239,68,68" : (isNum(p)&&p<0 ? "22,163,74" : "148,163,184");
+      const bg=`rgba(${base},${(light?0.10:0.14)+inten*0.22})`;
+      const sel=b.name===sentState.sel?" sel":"";
+      const s=b.sentiment_now;
+      return `<div class="heat-tile${sel}" data-name="${escH(b.name)}" style="background:${bg}">
+        <div class="heat-name" title="${escH(b.name)}">${escH(b.name)}</div>
+        <div class="flex items-end justify-between mt-2">
+          <div class="num font-bold text-lg" style="color:${col}">${isNum(p)?(p>0?"+":"")+p.toFixed(2)+"%":dash}</div>
+          <div class="text-right"><div class="text-[10px] text-slate-500">${t("senti_now")}</div>
+            <div class="num text-sm font-semibold" style="color:var(--accent)">${isNum(s)?s.toFixed(0):dash}</div></div>
+        </div></div>`;
+    }).join("");
+    heat.querySelectorAll(".heat-tile").forEach(el=>{ el.onclick=()=>{ sentState.sel=el.dataset.name; renderSentiment(); }; });
+    drawOverlay();
+  }
+  function drawOverlay(){
+    const C=tc();
+    let b=findBoard(sentState.kind, sentState.sel);
+    let noHist=false;
+    if(!b || !b.hist || !b.hist.dates || !b.hist.dates.length){
+      noHist=true;
+      const fh=firstWithHist(sentState.kind); if(fh){ sentState.sel=fh; b=findBoard(sentState.kind,fh);
+        document.querySelectorAll("#sentHeat .heat-tile").forEach(el=>el.classList.toggle("sel", el.dataset.name===fh)); }
+    }
+    const titleEl=$("#sentOverlayTitle");
+    if(!hasECharts){ $("#sentOverlay").innerHTML=`<div class="text-amber-400 text-sm p-3">${t("no_echarts")}</div>`; return; }
+    if(!b || !b.hist || !b.hist.dates || !b.hist.dates.length){
+      $("#sentOverlay").innerHTML=`<div class="text-slate-500 text-sm p-6 text-center">${t("no_hist")}</div>`;
+      if(titleEl) titleEl.textContent=t("overlay_t"); return;
+    }
+    const h=b.hist;
+    const n=h.dates.length; const tr=sentState.tr; const start=(tr>0&&tr<n)?n-tr:0;
+    const dates=h.dates.slice(start), close=(h.close||[]).slice(start), senti=(h.sentiment||[]).slice(start);
+    const latest=isNum(h.now)?h.now:(senti.length?senti[senti.length-1]:null);
+    if(titleEl) titleEl.textContent = `${b.name} · ${t("overlay_senti")} ${isNum(latest)?latest.toFixed(0):dash}`;
+    const ch=scInit("#sentOverlay","overlay"); if(!ch) return;
+    ch.setOption({ backgroundColor:"transparent", grid:{left:56,right:52,top:30,bottom:28},
+      tooltip:{trigger:"axis"},
+      legend:{top:0,textStyle:{color:C.label,fontSize:11},data:[t("overlay_idx"),t("overlay_senti")]},
+      xAxis:{type:"category",data:dates,axisLabel:{color:C.axis,fontSize:10}},
+      yAxis:[
+        {type:"value",scale:true,name:t("overlay_idx"),nameTextStyle:{color:C.axis,fontSize:10},
+         axisLabel:{color:C.axis,fontSize:10},splitLine:{lineStyle:{color:C.grid}}},
+        {type:"value",min:0,max:100,name:t("overlay_senti"),nameTextStyle:{color:C.axis,fontSize:10},
+         axisLabel:{color:C.axis,fontSize:10,formatter:"{value}"},splitLine:{show:false}}],
+      series:[
+        {name:t("overlay_idx"),type:"line",data:close,showSymbol:false,smooth:true,connectNulls:true,
+         lineStyle:{color:"#ef4444",width:2},itemStyle:{color:"#ef4444"}},
+        {name:t("overlay_senti"),type:"line",yAxisIndex:1,data:senti,showSymbol:false,smooth:true,connectNulls:true,
+         lineStyle:{color:"#38bdf8",width:2},itemStyle:{color:"#38bdf8"},
+         markLine:{silent:true,symbol:"none",lineStyle:{color:"#64748b",type:"dashed",width:1},
+           data:[{yAxis:50}],label:{show:false}}}]});
+  }
+  document.querySelectorAll(".kind-btn").forEach(b=>{ b.onclick=()=>{ sentState.kind=b.dataset.kind; sentState.sel=null; renderSentiment(); }; });
+  document.querySelectorAll(".tr-btn").forEach(b=>{ b.onclick=()=>{ sentState.tr=+b.dataset.tr; renderSentiment(); }; });
+
+  // ===================== 视图2: 板块资金流 =====================
+  function renderFlow(){
+    document.querySelectorAll(".kindf-btn").forEach(b=>b.classList.toggle("on", b.dataset.kind===flowState.kind));
+    const r=(SECT.ranking&&SECT.ranking[flowState.kind])||{};
+    const c=r.cards||{};
+    const light=document.body.classList.contains("light");
+    const red=light?"#ef4444":"#f87171", grn=light?"#16a34a":"#4ade80";
+    const card=(lab,val,col)=>`<div class="metric-card"><div class="text-[11px] text-slate-400">${escH(lab)}</div><div class="text-base font-semibold mt-1 num" style="${col?`color:${col}`:''}">${val}</div></div>`;
+    const tn=c.total_net;
+    $("#flowCards").innerHTML=[
+      card(t("card_trade_date"), escH((SECT.meta&&SECT.meta.trade_date)||dash)),
+      card(t("card_pos"), isNum(c.pos_cnt)?c.pos_cnt:dash, red),
+      card(t("card_neg"), isNum(c.neg_cnt)?c.neg_cnt:dash, grn),
+      card(t("card_strong"), escH(c.strongest||dash)),
+      card(t("card_weak"), escH(c.weakest||dash)),
+      card(t("card_totalnet"), syi(tn), rgColor(tn)),
+    ].join("");
+    $("#flowPos").innerHTML=rankTable(r.pos_top10||[]);
+    $("#flowNeg").innerHTML=rankTable(r.neg_top10||[]);
+    bindRankRows();
+  }
+  function rankTable(rows){
+    if(!rows.length) return `<div class="text-slate-500 text-sm p-2">${dash}</div>`;
+    const maxScore=Math.max.apply(null, rows.map(r=>isNum(r.score)?r.score:0))||1;
+    const head=`<thead><tr><th class="text-right">${t("rk_rank")}</th><th>${t("rk_board")}</th><th class="text-right">${t("rk_score")}</th><th class="text-right">${t("rk_net")}</th><th class="text-right">${t("rk_pct")}</th><th class="text-right">${t("rk_senti")}</th><th class="text-right">${t("rk_breadth")}</th></tr></thead>`;
+    const body=rows.map((r,i)=>{
+      const bw=isNum(r.score)?Math.max(6,Math.round(r.score/maxScore*46)):0;
+      return `<tr class="rank-row" data-kind="${escH(r.kind||flowState.kind)}" data-name="${escH(r.name)}">
+        <td class="num text-right text-slate-500">${i+1}</td>
+        <td class="text-slate-100">${escH(r.name)}</td>
+        <td class="num text-right"><span class="scorebar" style="width:${bw}px"></span> <span class="font-semibold">${isNum(r.score)?r.score.toFixed(1):dash}</span></td>
+        <td class="num text-right" style="color:${rgColor(r.net)}">${syi(r.net,1)}</td>
+        <td class="num text-right" style="color:${rgColor(r.pct)}">${isNum(r.pct)?(r.pct>0?"+":"")+r.pct.toFixed(2)+"%":dash}</td>
+        <td class="num text-right" style="color:var(--accent)">${isNum(r.sentiment_now)?r.sentiment_now.toFixed(0):dash}</td>
+        <td class="num text-right text-slate-400">${isNum(r.breadth)?r.breadth.toFixed(0)+"%":dash}</td></tr>`;
+    }).join("");
+    return `<table>${head}<tbody>${body}</tbody></table>`;
+  }
+  function bindRankRows(){
+    document.querySelectorAll("#viewFlow .rank-row").forEach(el=>{ el.onclick=()=>{
+      sentState.kind=el.dataset.kind; sentState.sel=el.dataset.name; switchView("sentiment");
+    }; });
+  }
+  document.querySelectorAll(".kindf-btn").forEach(b=>{ b.onclick=()=>{ flowState.kind=b.dataset.kind; renderFlow(); }; });
+
+  // ===================== 视图3: 四象限分类 =====================
+  function renderQuad(){
+    document.querySelectorAll(".kindq-btn").forEach(b=>b.classList.toggle("on", b.dataset.kind===quadState.kind));
+    const C=tc();
+    if(!hasECharts){ $("#quadChart").innerHTML=`<div class="text-amber-400 text-sm p-3">${t("no_echarts")}</div>`; return; }
+    const rows=((SECT.quadrant&&SECT.quadrant[quadState.kind])||[]).filter(r=>isNum(r.net)&&isNum(r.sentiment));
+    if(!rows.length){ $("#quadChart").innerHTML=`<div class="text-slate-500 text-sm p-6 text-center">${dash}</div>`; return; }
+    // 四象限颜色
+    const COL={si:"#ef4444", so:"#f59e0b", wi:"#38bdf8", wo:"#4ade80"};
+    function quadKey(net,se){ return se>=50 ? (net>=0?"si":"so") : (net>=0?"wi":"wo"); }
+    const comps=rows.map(r=>r.companies||0); const maxC=Math.max.apply(null,comps)||1;
+    const data=rows.map(r=>{ const k=quadKey(r.net,r.sentiment);
+      const size=8+Math.sqrt((r.companies||0)/maxC)*26;
+      return { value:[r.net, r.sentiment, r.companies||0, r.pct, r.name], name:r.name,
+        symbolSize:Math.max(8,Math.min(40,size)),
+        itemStyle:{color:COL[k],opacity:.82,borderColor:"rgba(0,0,0,.2)",borderWidth:.5} }; });
+    const ch=scInit("#quadChart","quad"); if(!ch) return;
+    // 四角标签用 graphic
+    ch.setOption({ backgroundColor:"transparent", grid:{left:56,right:24,top:20,bottom:44},
+      tooltip:{formatter:pr=>{ const v=pr.value;
+        return `<b>${escH(v[4])}</b><br/>${t("quad_net")}: ${syi(v[0],1)}<br/>${t("quad_senti")}: ${isNum(v[1])?v[1].toFixed(1):dash}<br/>${t("rk_pct")}: ${isNum(v[3])?(v[3]>0?"+":"")+v[3].toFixed(2)+"%":dash}<br/>${t("quad_comp")}: ${isNum(v[2])?v[2]:dash}`; }},
+      xAxis:{type:"value",name:t("quad_net")+(LANG==="en"?" (00M)":"(亿)"),nameLocation:"middle",nameGap:26,nameTextStyle:{color:C.axis,fontSize:11},
+        axisLabel:{color:C.axis,fontSize:10},splitLine:{lineStyle:{color:C.grid}}},
+      yAxis:{type:"value",min:0,max:100,name:t("quad_senti"),nameTextStyle:{color:C.axis,fontSize:11},
+        axisLabel:{color:C.axis,fontSize:10},splitLine:{lineStyle:{color:C.grid}}},
+      series:[{ type:"scatter", data,
+        markLine:{silent:true,symbol:"none",lineStyle:{color:"#94a3b8",type:"dashed",width:1},
+          label:{show:false}, data:[{xAxis:0},{yAxis:50}] } }],
+      graphic:[
+        quadLabel("right","top",t("quad_si"),COL.si),
+        quadLabel("left","top",t("quad_so"),COL.so),
+        quadLabel("right","bottom",t("quad_wi"),COL.wi),
+        quadLabel("left","bottom",t("quad_wo"),COL.wo),
+      ]});
+    function quadLabel(hx,vy,txt,col){
+      const style={ text:txt, fill:col, fontSize:12, fontWeight:700 };
+      const g={ type:"text", style, z:5 };
+      if(hx==="right"){ g.right=30; style.textAlign="right"; } else { g.left=64; style.textAlign="left"; }
+      if(vy==="top"){ g.top=26; } else { g.bottom=52; }
+      return g;
+    }
+  }
+  document.querySelectorAll(".kindq-btn").forEach(b=>{ b.onclick=()=>{ quadState.kind=b.dataset.kind; renderQuad(); }; });
+
+  window.addEventListener("resize", ()=>{ Object.keys(profCharts).forEach(k=>{ if(profCharts[k]) profCharts[k].resize(); });
+    Object.keys(sectCharts).forEach(k=>{ if(sectCharts[k]) sectCharts[k].resize(); }); });
 
   // ---- 启动 ----
   applyTheme(); applyStaticI18n(); setMarketBtnLabel(); buildSectorFilter(); renderMeta(); renderGrid();
+  renderView();
 })();
 </script>
 </body>
