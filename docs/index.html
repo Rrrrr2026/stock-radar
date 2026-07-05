@@ -350,7 +350,11 @@
 
   // ================= 数值格式 =================
   function f(v,d=2){ return isNum(v)?v.toFixed(d):dash; }
-  function yi(v,d=2){ return isNum(v)?(v.toFixed(d)+t("yi")):dash; }
+  // 亿元: 中文显示"亿"; 英文换算为 B(十亿, 1亿=0.1B)更易读
+  function yi(v,d=2){ if(!isNum(v)) return dash;
+    if(LANG==="en"){ const b=v/10; return (Math.abs(b)>=100?b.toFixed(0):b.toFixed(1))+"B"; }
+    return v.toFixed(d)+"亿"; }
+  function axisYi(v){ return LANG==="en" ? (v/10)+"B" : v+"亿"; }
   function pctS(v,d=1){ if(!isNum(v)) return dash; const c=v>0?"pos":(v<0?"neg":"");
     return `<span class="num ${c}">${v>0?"+":""}${v.toFixed(d)}%</span>`; }
   function pct(v,d=1){ return isNum(v)?v.toFixed(d)+"%":dash; }
@@ -541,14 +545,13 @@
         label:{color:C.label,fontSize:11,formatter:pr=>`${pr.name}\n${isNum((map[pr.name]||{}).pct)?map[pr.name].pct:pr.percent}%`},
         itemStyle:{borderColor:(document.body.classList.contains("light")?"#fff":"#111a2e"),borderWidth:2}, data}]});
     // 增速/毛利异常标注
-    const notes=[];
+    const notes=[], en=(LANG==="en"), nm=x=>escH(x.name);
     seg.items.forEach(x=>{
-      if(isNum(x.yoy)&&x.yoy>=30) notes.push(`<span style="color:#4ade80">✦ ${escH(x.name)} 营收同比 +${x.yoy}% —— 高增长业务，值得关注</span>`);
-      else if(isNum(x.yoy)&&x.yoy<=-15) notes.push(`<span style="color:#f87171">⚠ ${escH(x.name)} 营收同比 ${x.yoy}% —— 业务明显萎缩</span>`);
-      if(isNum(x.margin)&&x.margin>=60) notes.push(`<span style="color:#38bdf8">◆ ${escH(x.name)} 毛利率 ${x.margin}% —— 高毛利业务</span>`);
-      else if(isNum(x.margin)&&x.margin<=5&&x.margin>=0) notes.push(`<span class="text-slate-400">◇ ${escH(x.name)} 毛利率仅 ${x.margin}% —— 微利/走量</span>`);
+      if(isNum(x.yoy)&&x.yoy>=30) notes.push(`<span style="color:#4ade80">✦ ${nm(x)} ${en?`revenue +${x.yoy}% YoY — high-growth segment`:`营收同比 +${x.yoy}% —— 高增长业务，值得关注`}</span>`);
+      else if(isNum(x.yoy)&&x.yoy<=-15) notes.push(`<span style="color:#f87171">⚠ ${nm(x)} ${en?`revenue ${x.yoy}% YoY — segment clearly shrinking`:`营收同比 ${x.yoy}% —— 业务明显萎缩`}</span>`);
+      if(isNum(x.margin)&&x.margin>=60) notes.push(`<span style="color:#38bdf8">◆ ${nm(x)} ${en?`gross margin ${x.margin}% — high-margin business`:`毛利率 ${x.margin}% —— 高毛利业务`}</span>`);
+      else if(isNum(x.margin)&&x.margin<=5&&x.margin>=0) notes.push(`<span class="text-slate-400">◇ ${nm(x)} ${en?`gross margin only ${x.margin}% — thin-margin/volume play`:`毛利率仅 ${x.margin}% —— 微利/走量`}</span>`);
     });
-    if(LANG==="en"){ /* 简化: 英文下也展示中文标注的核心, 保持信息不丢 */ }
     $("#dPieNotes").innerHTML=notes.join("<br/>");
   }
   function drawRevCharts(p){
@@ -559,7 +562,7 @@
       tooltip:{trigger:"axis"},
       legend:{top:0,textStyle:{color:C.label,fontSize:11},data:[t("rev_annual"),t("rev_yoy"),t("rev_net")]},
       xAxis:{type:"category",data:r.years,axisLabel:{color:C.axis,fontSize:10}},
-      yAxis:[{type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:v=>v+t("yi")},splitLine:{lineStyle:{color:C.grid}}},
+      yAxis:[{type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:v=>axisYi(v)},splitLine:{lineStyle:{color:C.grid}}},
              {type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:"{value}%"},splitLine:{show:false}}],
       series:[{name:t("rev_annual"),type:"bar",data:r.revenue,barWidth:"42%",itemStyle:{color:"#38bdf8",borderRadius:[3,3,0,0]}},
               {name:t("rev_yoy"),type:"line",yAxisIndex:1,data:r.rev_yoy,connectNulls:true,lineStyle:{color:"#fbbf24",width:2},itemStyle:{color:"#fbbf24"},
@@ -570,7 +573,7 @@
       qc.setOption({backgroundColor:"transparent", grid:{left:52,right:46,top:8,bottom:20},
         tooltip:{trigger:"axis"},
         xAxis:{type:"category",data:r.quarters,axisLabel:{color:C.axis,fontSize:9}},
-        yAxis:{type:"value",axisLabel:{color:C.axis,fontSize:9,formatter:v=>v+t("yi")},splitLine:{lineStyle:{color:C.grid}}},
+        yAxis:{type:"value",axisLabel:{color:C.axis,fontSize:9,formatter:v=>axisYi(v)},splitLine:{lineStyle:{color:C.grid}}},
         series:[{type:"bar",data:r.q_revenue,barWidth:"55%",itemStyle:{color:"#34d399",borderRadius:[2,2,0,0]}}]});
     } else { $("#dQRevChart").innerHTML=""; }
   }
@@ -584,10 +587,10 @@
     const cf=p.cashflow, A=arr=>(arr||[]).map(v=>v==null?null:Math.abs(v));
     const ch=pcInit("#dCashChart","cash");
     ch.setOption({backgroundColor:"transparent", grid:{left:56,right:20,top:44,bottom:22},
-      tooltip:{trigger:"axis", valueFormatter:v=>isNum(v)?v.toFixed(1)+t("yi"):dash},
+      tooltip:{trigger:"axis", valueFormatter:v=>isNum(v)?yi(v,1):dash},
       legend:{top:0,textStyle:{color:C.label,fontSize:11}},
       xAxis:{type:"category",data:cf.years,axisLabel:{color:C.axis}},
-      yAxis:{type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:v=>v+t("yi")},splitLine:{lineStyle:{color:C.grid}}},
+      yAxis:{type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:v=>axisYi(v)},splitLine:{lineStyle:{color:C.grid}}},
       series:[
         {name:t("cf_ocf"),type:"bar",data:cf.ocf,itemStyle:{color:"#38bdf8"}},
         {name:t("cf_fcf"),type:"bar",data:cf.fcf,itemStyle:{color:"#34d399"}},
@@ -651,7 +654,7 @@
         ${mc(t("m_finbal"), isNum(m.fin_bal)?yi(m.fin_bal):dash, "#f87171")}
         ${mc(t("m_finbuy"), isNum(m.fin_buy)?yi(m.fin_buy):dash)}
         ${mc(t("m_shortbal"), isNum(m.short_bal)?yi(m.short_bal):dash, "#4ade80")}
-        ${mc(t("m_shortvol"), isNum(m.short_vol)?m.short_vol.toFixed(1)+(LANG==="en"?"0k sh":"万股"):dash)}
+        ${mc(t("m_shortvol"), isNum(m.short_vol)?m.short_vol.toFixed(1)+(LANG==="en"?"×10k sh":"万股"):dash)}
         ${mc(t("m_total"), isNum(m.total_bal)?yi(m.total_bal):dash)}</div>
         <div class="text-xs text-slate-400">${escH(m.date||"")} · ${t("m_read")}</div>`;
     } else { $("#dMargin").innerHTML=`<div class="card p-3 text-slate-500 text-sm">${t("no_margin")}</div>`; }
