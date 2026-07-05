@@ -1,6 +1,6 @@
 # 个股雷达 · 公司深度分析 / Stock Radar
 
-一个**完全独立、可直接在浏览器打开**的 A 股公司深度分析仪表盘。点击任一公司，即弹出该公司的：
+一个**完全独立、可直接在浏览器打开**的公司深度分析仪表盘，顶部一键切换 **A 股 / 美股**。点击任一公司，即弹出该公司的：
 
 1. **公司简介**（业务简介 + 管理层动向）
 2. **各项业务营收占比**（主营构成饼图，收入占比 / 毛利率，增速异常项自动标注）
@@ -43,11 +43,18 @@ stock-radar/
 ```bash
 pip install -r requirements.txt
 
-python -m pipeline.build_data              # 用默认关注池 (pipeline/watchlist.py)
+# A 股 (akshare) -> docs/data.js
+python -m pipeline.build_data                        # 默认关注池 pipeline/watchlist.py
 python -m pipeline.build_data 600519 000858 300750   # 或只拉指定代码
+
+# 美股 (yfinance) -> docs/data_us.js
+python -m pipeline.build_data us                     # 默认关注池 pipeline/watchlist_us.py
+python -m pipeline.build_data us AAPL MSFT NVDA      # 或只拉指定代码
 ```
 
-跑完会重写 `docs/data.js`，刷新页面即可看到最新档案。想换成自己的股票池，编辑 `pipeline/watchlist.py` 再重跑。
+跑完会重写对应的 `docs/data.js` / `docs/data_us.js`，刷新页面即可，顶部切 A股/美股。想换成自己的股票池，编辑 `pipeline/watchlist.py`（A 股）或 `pipeline/watchlist_us.py`（美股）再重跑。
+
+**美股与 A 股的差异**：美股用真实数据，`期权博弈` 是**真实期权持仓**（P/C 比 + 最大痛点），`暗池` 是**FINRA 场外空头成交占比**（都不是代理）；`风险` 用 ISS 治理评分 + 做空/偿债；`管理层` 展示高管及薪酬（Yahoo）；`各项业务营收占比` 因免费源无分部营收，改为"每 1 美元营收去了哪"的成本流向拆解。单位为百万美元($M)。
 
 ## 数据源与代理指标说明
 
