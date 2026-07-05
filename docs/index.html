@@ -9,6 +9,7 @@
 <script src="data.js"></script>
 <script src="data_us.js"></script>
 <script src="sector.js"></script>
+<script src="sector_history.js"></script>
 <style>
   :root{
     --bg:#0a1020; --card:#111a2e; --card2:#0e1830; --border:#1e2a44; --text:#e5e7eb;
@@ -113,9 +114,7 @@
   <!-- 左侧导航 -->
   <nav id="sidebar">
     <div class="logo"><span style="color:var(--accent)">◉</span> <span data-i18n="app_name">板块情绪雷达</span></div>
-    <div class="navitem" data-view="sentiment"><span class="ico">🔥</span><span data-i18n="nav_sentiment">板块情绪</span></div>
-    <div class="navitem" data-view="flow"><span class="ico">💰</span><span data-i18n="nav_flow">板块资金流</span></div>
-    <div class="navitem" data-view="quad"><span class="ico">🎯</span><span data-i18n="nav_quad">四象限分类</span></div>
+    <div class="navitem" data-view="sector"><span class="ico">🛰️</span><span data-i18n="nav_sector">板块雷达</span></div>
     <div class="navitem" data-view="stocks"><span class="ico">📈</span><span data-i18n="nav_stocks">个股分析</span></div>
   </nav>
 
@@ -145,81 +144,108 @@
        style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.06);color:#d9a441"
        id="disclaimer" data-i18n="disclaimer">加载中…</div>
 
-  <!-- ============ 视图 1: 板块情绪 ============ -->
-  <section id="viewSentiment" class="view hidden">
-    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
-      <h2 class="sec-title text-lg" data-i18n="view_sentiment_t">板块情绪雷达 · 热力</h2>
+  <!-- ============ 视图: 板块雷达 (合并: 全市场解读 · 情绪演变 · 板块情绪 · 资金流 · 四象限) ============ -->
+  <section id="viewSector" class="view hidden">
+
+    <!-- 顶部: 标题 + 全局 行业/概念 切换 (驱动本页所有区块) -->
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+      <h2 class="sec-title text-lg" data-i18n="view_sector_t">板块雷达</h2>
       <div class="flex gap-1.5">
         <button class="segbtn kind-btn" data-kind="industry" data-i18n="kind_ind">行业</button>
         <button class="segbtn kind-btn on" data-kind="concept" data-i18n="kind_con">概念</button>
       </div>
     </div>
-    <div class="text-xs text-slate-500 mb-3" id="sentHeatNote" data-i18n="heat_note">按 |资金净流| 排序取前 18 板块；涨红跌绿，右下为自研情绪指数(0-100)。点击瓦片查看叠加图。</div>
-    <div id="sentHeat" class="heat-grid mb-5"></div>
-    <div class="card p-4 mb-4">
-      <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
-        <h3 class="sec-title" id="sentOverlayTitle" data-i18n="overlay_t">板块指数 + 情绪指数叠加图</h3>
-        <div class="flex gap-1.5">
-          <button class="segbtn tr-btn on" data-tr="60" data-i18n="tr_3m">近3月</button>
-          <button class="segbtn tr-btn" data-tr="120" data-i18n="tr_6m">近6月</button>
-          <button class="segbtn tr-btn" data-tr="250" data-i18n="tr_1y">近1年</button>
-          <button class="segbtn tr-btn" data-tr="0" data-i18n="tr_all">全部</button>
+
+    <!-- (A) 全市场解读 -->
+    <div class="mb-6">
+      <h3 class="sec-title mb-2" data-i18n="market_title">全市场解读</h3>
+      <div id="mktRead"></div>
+    </div>
+
+    <!-- (B) 情绪演变 (板块情绪日度均值 · 近一年) -->
+    <div class="card p-4 mb-6">
+      <h3 class="sec-title mb-1" data-i18n="trend_title">板块情绪演变</h3>
+      <div class="text-xs text-slate-500 mb-2" id="sentTrendNote" data-i18n="trend_note">各板块情绪指数的日度均值(0-100)，展示过去约一年的演变；每次流水线运行会追加一份当日快照，随时间累积。</div>
+      <div id="sentTrend" style="height:300px"></div>
+    </div>
+
+    <!-- (C) 板块情绪 (热力 + 叠加 + 单板块解读) -->
+    <div class="mb-6">
+      <h3 class="sec-title text-lg mb-2" data-i18n="view_sentiment_t">板块情绪雷达 · 热力</h3>
+      <div class="text-xs text-slate-500 mb-3" id="sentHeatNote" data-i18n="heat_note">按 |资金净流| 排序取前 18 板块；涨红跌绿，右下为自研情绪指数(0-100)。点击瓦片查看叠加图。</div>
+      <div id="sentHeat" class="heat-grid mb-5"></div>
+      <div class="card p-4 mb-3">
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
+          <h3 class="sec-title" id="sentOverlayTitle" data-i18n="overlay_t">板块指数 + 情绪指数叠加图</h3>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button class="segbtn tr-btn on" data-tr="60" data-i18n="tr_3m">近3月</button>
+            <button class="segbtn tr-btn" data-tr="120" data-i18n="tr_6m">近6月</button>
+            <button class="segbtn tr-btn" data-tr="250" data-i18n="tr_1y">近1年</button>
+            <button class="segbtn tr-btn" data-tr="0" data-i18n="tr_all">全部</button>
+            <button id="boardToStocks" class="segbtn" style="border-color:var(--accent);color:var(--accent)" data-i18n="see_board_stocks">看该板块个股 →</button>
+          </div>
+        </div>
+        <div class="text-xs text-slate-500 mb-2" data-i18n="overlay_note">左轴=板块指数(红)，右轴=情绪指数0-100(蓝)。</div>
+        <div id="sentOverlay" style="height:360px"></div>
+        <!-- 单板块解读 -->
+        <div id="boardRead" class="mt-3"></div>
+      </div>
+      <div class="text-xs text-slate-500 mb-1" id="sentMethod"></div>
+      <div class="text-xs text-slate-500 mb-2" data-i18n="method_caption">ⓘ 分析解读为规则化、自研方法，仅供研究，不构成投资建议。</div>
+    </div>
+
+    <!-- (D) 板块资金流 -->
+    <div class="mb-6">
+      <h3 class="sec-title text-lg mb-3" data-i18n="view_flow_t">板块资金流 · 综合评分</h3>
+      <div id="flowCards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5"></div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div class="card p-4">
+          <h3 class="sec-title mb-2"><span data-i18n="rank_pos_t">正向综合评分 TOP10</span></h3>
+          <div id="flowPos" class="overflow-x-auto"></div>
+        </div>
+        <div class="card p-4">
+          <h3 class="sec-title mb-2"><span data-i18n="rank_neg_t">负向综合评分 TOP10</span></h3>
+          <div id="flowNeg" class="overflow-x-auto"></div>
         </div>
       </div>
-      <div class="text-xs text-slate-500 mb-2" data-i18n="overlay_note">左轴=板块指数(红)，右轴=情绪指数0-100(蓝)。</div>
-      <div id="sentOverlay" style="height:360px"></div>
     </div>
-    <div class="text-xs text-slate-500 mb-8" id="sentMethod"></div>
-  </section>
 
-  <!-- ============ 视图 2: 板块资金流 ============ -->
-  <section id="viewFlow" class="view hidden">
-    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
-      <h2 class="sec-title text-lg" data-i18n="view_flow_t">板块资金流 · 综合评分</h2>
-      <div class="flex gap-1.5">
-        <button class="segbtn kindf-btn" data-kind="industry" data-i18n="kind_ind">行业</button>
-        <button class="segbtn kindf-btn on" data-kind="concept" data-i18n="kind_con">概念</button>
-      </div>
-    </div>
-    <div id="flowCards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5"></div>
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-8">
-      <div class="card p-4">
-        <h3 class="sec-title mb-2"><span data-i18n="rank_pos_t">正向综合评分 TOP10</span></h3>
-        <div id="flowPos" class="overflow-x-auto"></div>
-      </div>
-      <div class="card p-4">
-        <h3 class="sec-title mb-2"><span data-i18n="rank_neg_t">负向综合评分 TOP10</span></h3>
-        <div id="flowNeg" class="overflow-x-auto"></div>
-      </div>
+    <!-- (E) 四象限分类 -->
+    <div class="mb-8">
+      <h3 class="sec-title text-lg mb-2" data-i18n="view_quad_t">四象限分类 · 资金 × 情绪</h3>
+      <div class="text-xs text-slate-500 mb-3" data-i18n="quad_note">横轴=资金净流(亿)，纵轴=情绪(0-100)；分界线 净流=0 / 情绪=50。气泡大小≈成分股数量。点击气泡查看该板块叠加图。</div>
+      <div class="card p-4"><div id="quadChart" style="height:460px"></div></div>
     </div>
   </section>
 
-  <!-- ============ 视图 3: 四象限分类 ============ -->
-  <section id="viewQuad" class="view hidden">
-    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
-      <h2 class="sec-title text-lg" data-i18n="view_quad_t">四象限分类 · 资金 × 情绪</h2>
-      <div class="flex gap-1.5">
-        <button class="segbtn kindq-btn" data-kind="industry" data-i18n="kind_ind">行业</button>
-        <button class="segbtn kindq-btn on" data-kind="concept" data-i18n="kind_con">概念</button>
-      </div>
-    </div>
-    <div class="text-xs text-slate-500 mb-3" data-i18n="quad_note">横轴=资金净流(亿)，纵轴=情绪(0-100)；分界线 净流=0 / 情绪=50。气泡大小≈成分股数量。</div>
-    <div class="card p-4 mb-8"><div id="quadChart" style="height:460px"></div></div>
-  </section>
-
-  <!-- ============ 视图 4: 个股分析 ============ -->
+  <!-- ============ 视图: 个股分析 ============ -->
   <section id="viewStocks" class="view hidden">
-    <!-- 控制条 -->
-    <section class="flex items-center gap-2 flex-wrap mb-4">
-      <input id="search" class="w-56" placeholder="搜索 代码 / 名称" data-i18n-ph="search_ph" />
-      <select id="filterSector"><option value="">全部行业</option></select>
-      <span id="countLabel" class="text-sm text-slate-400"></span>
-    </section>
+    <!-- 板块联动: 成分股过滤头 -->
+    <div id="boardFilterBar" class="card p-3 mb-4 hidden" style="border-color:var(--accent);background:rgba(56,189,248,.06)">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="text-sm"><span data-i18n="board_stocks_of">板块</span>
+          <span class="font-bold" id="bfName" style="color:var(--accent)"></span>
+          <span data-i18n="board_stocks_suffix"> 的成分股</span></div>
+        <button id="boardFilterClear" class="segbtn" data-i18n="return_all_stocks">← 返回全部个股</button>
+      </div>
+      <div id="bfNote" class="text-xs text-slate-500 mt-2 hidden"></div>
+    </div>
+    <div id="boardStocksGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6 hidden"></div>
 
-    <!-- 个股网格 -->
-    <section id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></section>
-    <div id="emptyHint" class="text-center text-slate-500 py-10 hidden" data-i18n="empty">
-      暂无个股数据。运行 <code>python -m pipeline.build_data</code> 生成 docs/data.js。</div>
+    <!-- 常规(未过滤) 个股: 控制条 + 网格 -->
+    <div id="normalStocks">
+      <!-- 控制条 -->
+      <section class="flex items-center gap-2 flex-wrap mb-4">
+        <input id="search" class="w-56" placeholder="搜索 代码 / 名称" data-i18n-ph="search_ph" />
+        <select id="filterSector"><option value="">全部行业</option></select>
+        <span id="countLabel" class="text-sm text-slate-400"></span>
+      </section>
+
+      <!-- 个股网格 -->
+      <section id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></section>
+      <div id="emptyHint" class="text-center text-slate-500 py-10 hidden" data-i18n="empty">
+        暂无个股数据。运行 <code>python -m pipeline.build_data</code> 生成 docs/data.js。</div>
+    </div>
 
     <p class="text-xs text-slate-500 text-center my-8" data-i18n="footer">
       本页数据仅供研究，不构成投资建议 · 暗池以大宗交易近似、期权博弈以融资融券近似（A股代理指标）。</p>
@@ -427,9 +453,29 @@
       no_dark:"暂无 FINRA 数据",
       // ===== 板块情绪雷达 (新增) =====
       app_name:"板块情绪雷达",
-      nav_sentiment:"板块情绪", nav_flow:"板块资金流", nav_quad:"四象限分类", nav_stocks:"个股分析",
+      nav_sector:"板块雷达", nav_stocks:"个股分析",
       kind_ind:"行业", kind_con:"概念",
+      view_sector_t:"板块雷达",
       view_sentiment_t:"板块情绪雷达 · 热力", view_flow_t:"板块资金流 · 综合评分", view_quad_t:"四象限分类 · 资金 × 情绪",
+      // 全市场解读 (Task 3a)
+      market_title:"全市场解读",
+      mr_avg:"情绪均值", mr_ind:"行业情绪", mr_con:"概念情绪", mr_totalnet:"总净流向", mr_pos:"净流入家数", mr_neg:"净流出家数",
+      st_hot:"偏热", st_neutral:"中性", st_cold:"偏冷",
+      // 情绪演变 (Task 2)
+      trend_title:"板块情绪演变",
+      trend_note:"各板块情绪指数的日度均值(0-100)，展示过去约一年的演变；每次流水线运行会追加一份当日快照，随时间累积。",
+      trend_ind:"行业情绪均值", trend_con:"概念情绪均值", trend_mid:"中位(50)", no_trend:"暂无情绪演变数据",
+      // 单板块解读 (Task 3b)
+      board_read_t:"板块解读",
+      br_pos:"近一年位置", br_idx20:"近月指数", br_sen20:"近月情绪", no_board_read:"暂无解读",
+      method_caption:"ⓘ 分析解读为规则化、自研方法，仅供研究，不构成投资建议。",
+      // 板块→个股联动 (Task 4)
+      see_board_stocks:"看该板块个股 →",
+      board_stocks_of:"板块", board_stocks_suffix:" 的成分股",
+      return_all_stocks:"← 返回全部个股",
+      cons_note:"东财成分股接口在本机不可达，暂以领涨股 + 自选清单中同板块个股近似。完整成分股需在可访问东财的机器上重跑 python -m pipeline.sector。",
+      bs_lead:"领涨股", bs_watch:"自选·同板块", bs_noprofile:"深度档案未生成",
+      no_board_stocks:"暂无可展示的该板块个股。",
       heat_note:"按 |资金净流| 排序取前 18 板块；涨红跌绿，右下为自研情绪指数(0-100)。点击瓦片查看叠加图。",
       overlay_t:"板块指数 + 情绪指数叠加图",
       overlay_note:"左轴=板块指数(红)，右轴=情绪指数0-100(蓝)。",
@@ -525,9 +571,29 @@
       no_dark:"No FINRA data",
       // ===== Sector sentiment radar (new) =====
       app_name:"Sector Sentiment Radar",
-      nav_sentiment:"Sentiment", nav_flow:"Money Flow", nav_quad:"Quadrants", nav_stocks:"Stocks",
+      nav_sector:"Sector Radar", nav_stocks:"Stocks",
       kind_ind:"Industry", kind_con:"Concept",
+      view_sector_t:"Sector Radar",
       view_sentiment_t:"Sector Sentiment · Heatmap", view_flow_t:"Sector Money Flow · Score", view_quad_t:"Quadrants · Flow × Sentiment",
+      // Market read (Task 3a)
+      market_title:"Market Read",
+      mr_avg:"Avg sentiment", mr_ind:"Industry", mr_con:"Concept", mr_totalnet:"Total net flow", mr_pos:"Boards net-in", mr_neg:"Boards net-out",
+      st_hot:"Hot", st_neutral:"Neutral", st_cold:"Cold",
+      // Sentiment over time (Task 2)
+      trend_title:"Sector Sentiment Over Time",
+      trend_note:"Daily average of every board's sentiment index (0-100), showing roughly the past year; each pipeline run appends a daily snapshot that accrues over time.",
+      trend_ind:"Industry avg", trend_con:"Concept avg", trend_mid:"Mid (50)", no_trend:"No sentiment-trend data",
+      // Per-board read (Task 3b)
+      board_read_t:"Board Read",
+      br_pos:"1yr range position", br_idx20:"1M index", br_sen20:"1M sentiment", no_board_read:"No read available",
+      method_caption:"ⓘ The read is a rule-based, in-house method — for research only, not investment advice.",
+      // Board → stocks linkage (Task 4)
+      see_board_stocks:"See board's stocks →",
+      board_stocks_of:"Board", board_stocks_suffix:" · constituents",
+      return_all_stocks:"← Return to all stocks",
+      cons_note:"The EastMoney constituents API is unreachable on this machine; showing the leader + same-board names from your watchlist as an approximation. Full constituents need an EastMoney-reachable machine — rerun python -m pipeline.sector.",
+      bs_lead:"Leader", bs_watch:"Watchlist · same board", bs_noprofile:"No deep profile",
+      no_board_stocks:"No stocks to show for this board.",
       heat_note:"Top 18 boards by |net flow|; up=red / down=green, bottom-right is our in-house sentiment index (0-100). Click a tile for the overlay.",
       overlay_t:"Sector Index + Sentiment Index",
       overlay_note:"Left axis = sector index (red), right axis = sentiment 0-100 (blue).",
@@ -670,7 +736,9 @@
     closeDrawer();
     buildSectorFilter();
     renderMeta();
-    renderGrid();
+    // 板块→个股联动为 A股自选联动; 切换市场时清除过滤, 恢复常规网格
+    if(typeof boardFilter!=="undefined") boardFilter=null;
+    if(VIEW==="stocks" && typeof renderStocksView==="function") renderStocksView(); else renderGrid();
   }
   function currentStocks(){
     let rows=(DATA.stocks||[]).slice();
@@ -1047,6 +1115,7 @@
   function openDrawer(code){
     curCode=code; curP=(DATA.profiles||{})[code]||null;
     disposeProf();
+    { const tl=$("#tvLink"); if(tl) tl.style.display=""; }  // 恢复 (lite-info 可能隐藏过)
     const s=(DATA.stocks||[]).find(x=>x.code===code)||{};
     const name=(curP&&curP.name)||s.name||code;
     $("#dTitle").innerHTML=`${escH(name)} <a href="https://www.tradingview.com/symbols/${encodeURIComponent(tvPage(code))}/" target="_blank" rel="noopener" class="text-sky-300 font-mono text-base hover:underline">${code} ↗</a> <span class="chip ml-2">${escH((curP&&curP.sector)||s.sector||"")}</span>`;
@@ -1079,9 +1148,10 @@
   // ================================================================
   // ======  板块情绪雷达 (视图: 情绪 / 资金流 / 四象限 / 个股)  ======
   // ================================================================
-  const VIEW_KEY="radar_view_v1";
-  let VIEW="sentiment"; try{ VIEW=localStorage.getItem(VIEW_KEY)||"sentiment"; }catch(e){}
-  if(["sentiment","flow","quad","stocks"].indexOf(VIEW)<0) VIEW="sentiment";
+  const VIEW_KEY="radar_view_v2";
+  let VIEW="sector"; try{ VIEW=localStorage.getItem(VIEW_KEY)||"sector"; }catch(e){}
+  if(["sector","stocks"].indexOf(VIEW)<0) VIEW="sector";
+  const SECT_HIST = window.__SECTOR_HISTORY__ || [];
   // 板块专用的"亿"格式 (数据恒为 A股人民币, 不随 isUS() 变化)
   function syi(v,d=2){ if(!isNum(v)) return dash;
     if(LANG==="en"){ const b=v/10; return (Math.abs(b)>=100?b.toFixed(0):b.toFixed(1))+"B"; }
@@ -1100,32 +1170,144 @@
   function disposeSect(){ Object.keys(sectCharts).forEach(k=>{ if(sectCharts[k]){ sectCharts[k].dispose(); sectCharts[k]=null; } }); }
 
   // ----- 视图状态 -----
+  // 全局 kind (行业/概念) 驱动 板块雷达 所有区块; sel/tr 为板块情绪叠加图状态
   const sentState={ kind:"concept", sel:null, tr:60 };
-  const flowState={ kind:"concept" };
-  const quadState={ kind:"concept" };
+  // 兼容旧引用: 资金流/四象限 复用同一 kind
+  const flowState={ get kind(){ return sentState.kind; } };
+  const quadState={ get kind(){ return sentState.kind; } };
+  // 个股视图: 当前板块过滤 (null = 未过滤, 显示常规网格)
+  let boardFilter=null;   // {kind,name}
 
   function setActiveNav(){
     document.querySelectorAll("#sidebar .navitem").forEach(el=>el.classList.toggle("on", el.dataset.view===VIEW));
-    ["sentiment","flow","quad","stocks"].forEach(v=>{
+    ["sector","stocks"].forEach(v=>{
       const el=$("#view"+v.charAt(0).toUpperCase()+v.slice(1));
       if(el) el.classList.toggle("hidden", v!==VIEW);
     });
   }
+  function renderSector(){
+    // 全局 kind 按钮同步
+    document.querySelectorAll(".kind-btn").forEach(b=>b.classList.toggle("on", b.dataset.kind===sentState.kind));
+    renderMarketRead();   // (A)
+    renderTrend();        // (B)
+    renderSentiment();    // (C)
+    renderFlow();         // (D)
+    renderQuad();         // (E)
+  }
   function renderView(){
     disposeSect();
     setActiveNav();
-    if(VIEW==="sentiment") renderSentiment();
-    else if(VIEW==="flow") renderFlow();
-    else if(VIEW==="quad") renderQuad();
-    // stocks view already rendered via renderGrid; ensure grid populated
+    if(VIEW==="sector") renderSector();
+    // stocks view rendered via renderStocksView (normal grid or board filter)
+    else if(VIEW==="stocks") renderStocksView();
     // (charts auto-resize handled globally)
   }
   function switchView(v){
-    if(["sentiment","flow","quad","stocks"].indexOf(v)<0) v="sentiment";
+    if(["sector","stocks"].indexOf(v)<0) v="sector";
     VIEW=v; try{ localStorage.setItem(VIEW_KEY, VIEW); }catch(e){}
     renderView();
   }
   document.querySelectorAll("#sidebar .navitem").forEach(el=>{ el.onclick=()=>switchView(el.dataset.view); });
+  // 全局 kind 切换: 重渲染整页板块雷达
+  document.querySelectorAll(".kind-btn").forEach(b=>{ b.onclick=()=>{ sentState.kind=b.dataset.kind; sentState.sel=null; renderSector(); }; });
+
+  // ---- 分析解读 公共渲染: note 卡片 + verdict 徽章 (复用 note-good/warn/info) ----
+  function insightCards(list){
+    const arr=(list||[]).filter(n=>n&&(n.text||n.text_en));
+    if(!arr.length) return "";
+    return `<div class="space-y-2">`+arr.map(n=>{ const lvl=(n.level==="good"||n.level==="warn"||n.level==="info")?n.level:"info";
+      const txt=(LANG==="en"&&n.text_en)?n.text_en:(n.text||n.text_en||"");
+      return `<div class="note-${lvl} p-2 rounded text-[13px] text-slate-200">${escH(txt)}</div>`; }).join("")+`</div>`;
+  }
+  function verdictBadge(text,level){
+    if(!text) return "";
+    const l=(level==="good"||level==="warn"||level==="info")?level:"info";
+    const map={good:{bg:"rgba(34,197,94,.16)",bd:"rgba(34,197,94,.45)",fg:"#22c55e"},
+               warn:{bg:"rgba(245,158,11,.16)",bd:"rgba(245,158,11,.45)",fg:"#f59e0b"},
+               info:{bg:"rgba(148,163,184,.16)",bd:"rgba(148,163,184,.4)",fg:"#94a3b8"}};
+    const c=map[l];
+    return `<span class="badge" style="background:${c.bg};border:1px solid ${c.bd};color:${c.fg}">${escH(text)}</span>`;
+  }
+
+  // ===================== (A) 全市场解读 =====================
+  function renderMarketRead(){
+    const el=$("#mktRead"); if(!el) return;
+    const m=SECT.market;
+    if(!m){ el.innerHTML=`<div class="card p-4 text-slate-500 text-sm">${dash}</div>`; return; }
+    const stMap={"偏热":"st_hot","中性":"st_neutral","偏冷":"st_cold"};
+    const stTxt = (LANG==="en") ? (m.state_en||t(stMap[m.state]||"st_neutral")) : (m.state||"");
+    const summary = (LANG==="en"&&m.summary_en)?m.summary_en:(m.summary||m.summary_en||"");
+    const metric=(lab,val,col)=>`<div class="metric-card"><div class="text-[11px] text-slate-400">${escH(lab)}</div><div class="text-base font-semibold mt-1 num" style="${col?`color:${col}`:''}">${val}</div></div>`;
+    const avgCell = isNum(m.avg) ? `${m.avg.toFixed(1)}${stTxt?` · ${escH(stTxt)}`:""}` : dash;
+    el.innerHTML =
+      `<div class="card p-4 note-info">
+        ${summary?`<div class="text-[13.5px] leading-relaxed text-slate-200 mb-3">${escH(summary)}</div>`:""}
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
+          ${metric(t("mr_avg"), avgCell, isNum(m.avg)?"var(--accent)":"")}
+          ${metric(t("mr_ind")+" / "+t("mr_con"), `${isNum(m.ind_now)?m.ind_now.toFixed(0):dash} / ${isNum(m.con_now)?m.con_now.toFixed(0):dash}`)}
+          ${metric(t("mr_totalnet"), syi(m.total_net,1), rgColor(m.total_net))}
+          ${metric(t("mr_pos"), isNum(m.pos_cnt)?m.pos_cnt:dash, rgColor(1))}
+          ${metric(t("mr_neg"), isNum(m.neg_cnt)?m.neg_cnt:dash, rgColor(-1))}
+        </div>
+        ${insightCards(m.insights)}
+      </div>`;
+  }
+
+  // ===================== (B) 情绪演变 =====================
+  function renderTrend(){
+    const C=tc();
+    const tr=SECT.trend||{};
+    const dates=tr.dates||[], ind=tr.industry_avg||[], con=tr.concept_avg||[];
+    if(!hasECharts){ $("#sentTrend").innerHTML=`<div class="text-amber-400 text-sm p-3">${t("no_echarts")}</div>`; return; }
+    if(!dates.length || (!ind.length && !con.length)){
+      $("#sentTrend").innerHTML=`<div class="text-slate-500 text-sm p-6 text-center">${t("no_trend")}</div>`; return; }
+    // 可选: 用 SECTOR_HISTORY 的 avg 作为 markPoint 叠加在末端
+    let markPts=null;
+    if(SECT_HIST&&SECT_HIST.length){
+      const pts=SECT_HIST.filter(s=>s&&s.date&&isNum(s.avg)).map(s=>({ coord:[s.date, s.avg], value:s.avg.toFixed(0),
+        itemStyle:{color:"#c084fc"} }));
+      if(pts.length) markPts={symbol:"pin",symbolSize:34,label:{show:true,fontSize:9,color:"#fff"},data:pts};
+    }
+    const ch=scInit("#sentTrend","trend"); if(!ch) return;
+    ch.setOption({ backgroundColor:"transparent", grid:{left:44,right:20,top:30,bottom:26},
+      tooltip:{trigger:"axis"},
+      legend:{top:0,textStyle:{color:C.label,fontSize:11},data:[t("trend_ind"),t("trend_con")]},
+      xAxis:{type:"category",data:dates,axisLabel:{color:C.axis,fontSize:10}},
+      yAxis:{type:"value",min:0,max:100,axisLabel:{color:C.axis,fontSize:10},splitLine:{lineStyle:{color:C.grid}}},
+      series:[
+        {name:t("trend_ind"),type:"line",data:ind,showSymbol:false,smooth:true,connectNulls:true,
+         lineStyle:{color:"#f59e0b",width:2},itemStyle:{color:"#f59e0b"},
+         markLine:{silent:true,symbol:"none",lineStyle:{color:"#64748b",type:"dashed",width:1},
+           data:[{yAxis:50,name:t("trend_mid")}],label:{show:false}}},
+        {name:t("trend_con"),type:"line",data:con,showSymbol:false,smooth:true,connectNulls:true,
+         lineStyle:{color:"#38bdf8",width:2},itemStyle:{color:"#38bdf8"},
+         markPoint:markPts||undefined}
+      ]});
+  }
+
+  // ===================== (C-下) 单板块解读 =====================
+  function renderBoardRead(){
+    const el=$("#boardRead"); if(!el) return;
+    const b=findBoard(sentState.kind, sentState.sel);
+    if(!b){ el.innerHTML=""; return; }
+    const vTxt=(LANG==="en"&&b.verdict_en)?b.verdict_en:(b.verdict||"");
+    const badge=vTxt?verdictBadge(vTxt, b.verdict_level):"";
+    const stat=(lab,val)=>`<span class="text-slate-400">${escH(lab)}</span> <span class="num text-slate-200">${val}</span>`;
+    const line=[
+      isNum(b.pos)?stat(t("br_pos"), b.pos.toFixed(0)+"%"):null,
+      isNum(b.idx20)?stat(t("br_idx20"), `<span style="color:${rgColor(b.idx20)}">${(b.idx20>0?"+":"")+b.idx20.toFixed(1)}%</span>`):null,
+      isNum(b.sen20)?stat(t("br_sen20"), `<span style="color:${rgColor(b.sen20)}">${(b.sen20>0?"+":"")+b.sen20.toFixed(1)}</span>`):null,
+    ].filter(Boolean).join(" · ");
+    const ins=insightCards(b.insights);
+    el.innerHTML =
+      `<div class="pt-2" style="border-top:1px dashed var(--gridline)">
+        <div class="flex items-center gap-2 flex-wrap mb-2">
+          <span class="text-[13px] font-semibold text-slate-200">${escH(b.name)} · ${t("board_read_t")}</span>${badge}
+        </div>
+        ${line?`<div class="text-xs mb-2">${line}</div>`:""}
+        ${ins || `<div class="text-slate-500 text-sm">${t("no_board_read")}</div>`}
+      </div>`;
+  }
 
   // ===================== 视图1: 板块情绪 =====================
   function firstWithHist(kind){ const L=boardList(kind); const h=L.filter(b=>b.hist&&b.hist.dates&&b.hist.dates.length);
@@ -1134,8 +1316,7 @@
   function heatTop(kind){ return boardList(kind).slice().sort((a,b)=>Math.abs(b.net||0)-Math.abs(a.net||0)).slice(0,18); }
 
   function renderSentiment(){
-    // 更新 kind 按钮
-    document.querySelectorAll(".kind-btn").forEach(b=>b.classList.toggle("on", b.dataset.kind===sentState.kind));
+    // kind 按钮由 renderSector 统一同步; 这里只同步区间按钮
     document.querySelectorAll(".tr-btn").forEach(b=>b.classList.toggle("on", +b.dataset.tr===sentState.tr));
     // 自研情绪方法说明
     const mn=$("#sentMethod"); if(mn) mn.textContent = (SECT.meta&&SECT.meta.note)?("ⓘ "+SECT.meta.note):"";
@@ -1166,21 +1347,18 @@
     }).join("");
     heat.querySelectorAll(".heat-tile").forEach(el=>{ el.onclick=()=>{ sentState.sel=el.dataset.name; renderSentiment(); }; });
     drawOverlay();
+    renderBoardRead();
   }
   function drawOverlay(){
     const C=tc();
-    let b=findBoard(sentState.kind, sentState.sel);
-    let noHist=false;
-    if(!b || !b.hist || !b.hist.dates || !b.hist.dates.length){
-      noHist=true;
-      const fh=firstWithHist(sentState.kind); if(fh){ sentState.sel=fh; b=findBoard(sentState.kind,fh);
-        document.querySelectorAll("#sentHeat .heat-tile").forEach(el=>el.classList.toggle("sel", el.dataset.name===fh)); }
-    }
+    // 不改写 sentState.sel: 选中板块若无指数历史, 只在图上提示"暂无历史",
+    // 保证下方 renderBoardRead 展示的仍是用户真正点选的板块 (修复: 点无历史板块时解读错板块)
+    const b=findBoard(sentState.kind, sentState.sel);
     const titleEl=$("#sentOverlayTitle");
     if(!hasECharts){ $("#sentOverlay").innerHTML=`<div class="text-amber-400 text-sm p-3">${t("no_echarts")}</div>`; return; }
     if(!b || !b.hist || !b.hist.dates || !b.hist.dates.length){
       $("#sentOverlay").innerHTML=`<div class="text-slate-500 text-sm p-6 text-center">${t("no_hist")}</div>`;
-      if(titleEl) titleEl.textContent=t("overlay_t"); return;
+      if(titleEl) titleEl.textContent = b ? `${escH(b.name)} · ${t("overlay_t")}` : t("overlay_t"); return;
     }
     const h=b.hist;
     const n=h.dates.length; const tr=sentState.tr; const start=(tr>0&&tr<n)?n-tr:0;
@@ -1205,12 +1383,12 @@
          markLine:{silent:true,symbol:"none",lineStyle:{color:"#64748b",type:"dashed",width:1},
            data:[{yAxis:50}],label:{show:false}}}]});
   }
-  document.querySelectorAll(".kind-btn").forEach(b=>{ b.onclick=()=>{ sentState.kind=b.dataset.kind; sentState.sel=null; renderSentiment(); }; });
   document.querySelectorAll(".tr-btn").forEach(b=>{ b.onclick=()=>{ sentState.tr=+b.dataset.tr; renderSentiment(); }; });
+  // 看该板块个股: 跳到个股视图并按当前选中板块过滤
+  { const bs=$("#boardToStocks"); if(bs) bs.onclick=()=>{ if(sentState.sel){ openBoardStocks(sentState.kind, sentState.sel); } }; }
 
   // ===================== 视图2: 板块资金流 =====================
   function renderFlow(){
-    document.querySelectorAll(".kindf-btn").forEach(b=>b.classList.toggle("on", b.dataset.kind===flowState.kind));
     const r=(SECT.ranking&&SECT.ranking[flowState.kind])||{};
     const c=r.cards||{};
     const light=document.body.classList.contains("light");
@@ -1246,16 +1424,22 @@
     }).join("");
     return `<table>${head}<tbody>${body}</tbody></table>`;
   }
+  // 选中某板块并滚动到情绪叠加图 (合并页内联动)
+  function selectBoard(kind,name){
+    if(kind && kind!==sentState.kind){ sentState.kind=kind;
+      document.querySelectorAll(".kind-btn").forEach(b=>b.classList.toggle("on", b.dataset.kind===sentState.kind)); }
+    sentState.sel=name;
+    renderSentiment();
+    const el=$("#sentOverlayTitle"); if(el&&el.scrollIntoView) el.scrollIntoView({behavior:"smooth",block:"center"});
+  }
   function bindRankRows(){
-    document.querySelectorAll("#viewFlow .rank-row").forEach(el=>{ el.onclick=()=>{
-      sentState.kind=el.dataset.kind; sentState.sel=el.dataset.name; switchView("sentiment");
+    document.querySelectorAll("#viewSector .rank-row").forEach(el=>{ el.onclick=()=>{
+      selectBoard(el.dataset.kind, el.dataset.name);
     }; });
   }
-  document.querySelectorAll(".kindf-btn").forEach(b=>{ b.onclick=()=>{ flowState.kind=b.dataset.kind; renderFlow(); }; });
 
   // ===================== 视图3: 四象限分类 =====================
   function renderQuad(){
-    document.querySelectorAll(".kindq-btn").forEach(b=>b.classList.toggle("on", b.dataset.kind===quadState.kind));
     const C=tc();
     if(!hasECharts){ $("#quadChart").innerHTML=`<div class="text-amber-400 text-sm p-3">${t("no_echarts")}</div>`; return; }
     const rows=((SECT.quadrant&&SECT.quadrant[quadState.kind])||[]).filter(r=>isNum(r.net)&&isNum(r.sentiment));
@@ -1294,8 +1478,116 @@
       if(vy==="top"){ g.top=26; } else { g.bottom=52; }
       return g;
     }
+    // 点击气泡 → 选中该板块并滚动到叠加图 (联动)
+    ch.off && ch.off("click");
+    ch.on("click", pr=>{ if(pr&&pr.value&&pr.value[4]) selectBoard(quadState.kind, pr.value[4]); });
   }
-  document.querySelectorAll(".kindq-btn").forEach(b=>{ b.onclick=()=>{ quadState.kind=b.dataset.kind; renderQuad(); }; });
+
+  // ===================== 视图: 个股分析 (常规 或 板块过滤) =====================
+  // 板块名 ↔ 自选个股 sector 字符串 互相包含即视为同板块
+  function watchlistForBoard(boardName){
+    if(!boardName) return [];
+    return (DATA.stocks||[]).filter(s=>{ const sec=s.sector||""; if(!sec) return false;
+      return sec.indexOf(boardName)>=0 || boardName.indexOf(sec)>=0; });
+  }
+  function hasProfile(code){ return !!((DATA.profiles||{})[code]); }
+  // 板块成分股卡片 (来源: cons 数组项 或 自选个股)
+  function consCard(item){
+    // item: {code,name,pct,price, _src:"cons"|"lead"|"watch", _hasProfile}
+    const code=item.code||"", name=item.name||code||dash;
+    const srcLab = item._src==="lead"?t("bs_lead"):(item._src==="watch"?t("bs_watch"):"");
+    const noProf = code && !item._hasProfile;
+    const metrics=[];
+    if(isNum(item.pct)) metrics.push(`<span class="num" style="color:${rgColor(item.pct)}">${(item.pct>0?"+":"")+item.pct.toFixed(2)}%</span>`);
+    if(isNum(item.price)) metrics.push(`<span class="num text-slate-200">${item.price.toFixed(2)}</span>`);
+    return `<div class="stockcard" data-code="${escH(code)}" data-name="${escH(name)}"${isNum(item.pct)?` data-pct="${item.pct}"`:""}${isNum(item.price)?` data-price="${item.price}"`:""} data-src="${escH(item._src||"")}" data-hasprofile="${item._hasProfile?1:0}">
+      <div class="flex items-start justify-between gap-2">
+        <div><div class="text-base font-bold text-white">${escH(name)}</div>
+          ${code?`<div class="text-xs text-slate-400 font-mono">${escH(code)}</div>`:""}</div>
+        ${srcLab?`<span class="chip">${escH(srcLab)}</span>`:""}
+      </div>
+      ${metrics.length?`<div class="flex items-center gap-3 mt-3">${metrics.join("")}</div>`:""}
+      <div class="flex items-center justify-between mt-3">
+        <span class="text-[11px] ${noProf?"text-amber-400":"text-slate-500"}">${noProf?t("bs_noprofile"):t("c_click")} →</span>
+      </div>
+    </div>`;
+  }
+  // 组装某板块的个股清单
+  function boardStocksList(kind,name){
+    const b=findBoard(kind,name)||{};
+    const out=[]; const seen=new Set();
+    // (1) cons (通常缺失)
+    if(Array.isArray(b.cons)&&b.cons.length){
+      b.cons.forEach(c=>{ if(!c) return; const code=c.code||""; if(code&&seen.has(code)) return; if(code) seen.add(code);
+        out.push({code, name:c.name||code, pct:c.pct, price:c.price, _src:"cons", _hasProfile:hasProfile(code)}); });
+    } else if(b.lead){
+      // (2a) 领涨股 (仅名称)
+      out.push({code:"", name:b.lead, pct:b.lead_pct, _src:"lead", _hasProfile:false});
+    }
+    // (2b) 自选清单中同板块个股 (可深挖)
+    watchlistForBoard(name).forEach(s=>{ if(s.code&&seen.has(s.code)) return; if(s.code) seen.add(s.code);
+      out.push({code:s.code, name:s.name||s.code, pct:s.rev_yoy, _src:"watch", _hasProfile:hasProfile(s.code)}); });
+    return out;
+  }
+  function openBoardStocks(kind,name){
+    boardFilter={kind,name};
+    VIEW="stocks"; try{ localStorage.setItem(VIEW_KEY, VIEW); }catch(e){}
+    disposeSect(); setActiveNav(); renderStocksView();
+    $("#viewStocks").scrollIntoView&&$("#viewStocks").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+  function clearBoardFilter(){ boardFilter=null; renderStocksView(); }
+  function renderStocksView(){
+    const bar=$("#boardFilterBar"), grid=$("#boardStocksGrid"), normal=$("#normalStocks");
+    if(!boardFilter){
+      if(bar) bar.classList.add("hidden");
+      if(grid){ grid.classList.add("hidden"); grid.innerHTML=""; }
+      if(normal) normal.classList.remove("hidden");
+      renderGrid();
+      return;
+    }
+    // 过滤模式
+    if(normal) normal.classList.add("hidden");
+    if(bar) bar.classList.remove("hidden");
+    $("#bfName").textContent=boardFilter.name;
+    const rows=boardStocksList(boardFilter.kind, boardFilter.name);
+    const b=findBoard(boardFilter.kind, boardFilter.name)||{};
+    const noteEl=$("#bfNote");
+    // cons 缺失 → 展示说明
+    if(noteEl){ if(!(Array.isArray(b.cons)&&b.cons.length)){ noteEl.textContent=t("cons_note"); noteEl.classList.remove("hidden"); }
+      else { noteEl.classList.add("hidden"); } }
+    if(grid){
+      grid.classList.remove("hidden");
+      grid.innerHTML = rows.length? rows.map(consCard).join("")
+        : `<div class="text-slate-500 text-sm p-3 col-span-full">${t("no_board_stocks")}</div>`;
+      grid.querySelectorAll(".stockcard").forEach(el=>{ el.onclick=()=>{
+        const code=el.dataset.code||"";
+        if(code && hasProfile(code)){ openDrawer(code); }
+        else { openLiteInfo(el.dataset); }
+      }; });
+    }
+  }
+  // 轻量信息 (无深度档案): 用现有抽屉壳, 显示基本报价 + 生成提示
+  function openLiteInfo(d){
+    const name=d.name||d.code||dash, code=d.code||"";
+    curCode=code||null; curP=null; disposeProf();
+    $("#dTitle").innerHTML = `${escH(name)}${code?` <span class="text-sky-300 font-mono text-base">${escH(code)}</span>`:""} <span class="chip ml-2">${escH((boardFilter&&boardFilter.name)||"")}</span>`;
+    const bits=[];
+    if(d.pct!=null&&d.pct!==""){ const plab=(d.src==="watch")?t("c_revyoy"):(LANG==="en"?"Day change":"当日涨跌");
+      bits.push(`${plab}: <span class="num" style="color:${rgColor(+d.pct)}">${(+d.pct>0?"+":"")+(+d.pct).toFixed(2)}%</span>`); }
+    if(d.price!=null&&d.price!=="") bits.push(`${t("bt_price")}: <span class="num text-slate-200">${(+d.price).toFixed(2)}</span>`);
+    $("#dSub").innerHTML = bits.join(" · ");
+    // 只显示总览容器, 放入提示; 其它 tab 内容清空
+    document.querySelectorAll('#dTabs .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.tab==="tabOv"));
+    document.querySelectorAll('.dtab').forEach(dd=>dd.classList.toggle('hidden', dd.id!=="tabOv"));
+    const genCmd = code? `python -m pipeline.build_data ${code}` : `python -m pipeline.build_data`;
+    $("#dFund").innerHTML = `<div class="col-span-full note-warn p-3 rounded text-[13px] text-slate-200">${escH(LANG==="en"?"No deep profile generated yet — run: ":"深度档案未生成：运行 ")}<code>${escH(genCmd)}</code></div>`;
+    $("#tvWrap").innerHTML=""; const tl=$("#tvLink"); if(tl){ tl.style.display="none"; }
+    // 若有代码, 恢复 TradingView 链接
+    $("#drawer").scrollTop=0;
+    $("#overlay").classList.remove("hidden");
+    $("#drawer").classList.remove("translate-x-full");
+  }
+  { const c=$("#boardFilterClear"); if(c) c.onclick=clearBoardFilter; }
 
   window.addEventListener("resize", ()=>{ Object.keys(profCharts).forEach(k=>{ if(profCharts[k]) profCharts[k].resize(); });
     Object.keys(sectCharts).forEach(k=>{ if(sectCharts[k]) sectCharts[k].resize(); }); });
