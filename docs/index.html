@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>个股雷达 · 公司深度分析</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="data.js"></script>
+<style>
+  :root{
+    --bg:#0a1020; --card:#111a2e; --card2:#0e1830; --border:#1e2a44; --text:#e5e7eb;
+    --dim:#9fb4d6; --muted:#7e93b8; --head:#0e1830; --rowhover:#16223c;
+    --input:#0e1830; --inputborder:#26344f; --gridline:#1b2640; --drawer:#0a1020;
+    --accent:#38bdf8;
+  }
+  body.light{
+    --bg:#eef2f8; --card:#ffffff; --card2:#f6f8fc; --border:#d7e0ee; --text:#0f172a;
+    --dim:#334155; --muted:#64748b; --head:#eaf0f8; --rowhover:#eaf1fb;
+    --input:#ffffff; --inputborder:#cbd5e1; --gridline:#e6ecf5; --drawer:#f6f8fc;
+    --accent:#0ea5e9;
+  }
+  body{ background:
+      radial-gradient(1200px 600px at 15% -5%, rgba(56,189,248,.10), transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, rgba(168,85,247,.08), transparent 55%),
+      var(--bg);
+    color:var(--text); font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+    transition:background .25s,color .25s; min-height:100vh; }
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; }
+  .chip{ padding:2px 9px; border-radius:9999px; font-size:12px; font-weight:600; white-space:nowrap;
+    background:rgba(148,163,184,.16); color:var(--dim); border:1px solid var(--border); }
+  .segbtn{ padding:4px 12px; border-radius:8px; border:1px solid var(--inputborder); background:var(--input);
+    color:var(--dim); font-size:13px; cursor:pointer; }
+  .segbtn.on{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  select,input{ background:var(--input); border:1px solid var(--inputborder); color:var(--text);
+    border-radius:8px; padding:6px 10px; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .pos{ color:#ef4444; } .neg{ color:#16a34a; }             /* A股: 涨红跌绿 */
+  body:not(.light) .pos{ color:#f87171; } body:not(.light) .neg{ color:#4ade80; }
+  .stockcard{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px;
+    cursor:pointer; transition:transform .12s, border-color .12s, box-shadow .12s; }
+  .stockcard:hover{ transform:translateY(-2px); border-color:var(--accent);
+    box-shadow:0 8px 24px -12px rgba(56,189,248,.5); }
+  .badge{ padding:2px 8px; border-radius:9999px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .tag-pos{ background:rgba(34,197,94,.15); color:#16a34a; border:1px solid rgba(34,197,94,.4); }
+  body:not(.light) .tag-pos{ color:#4ade80; }
+  .tag-neg{ background:rgba(239,68,68,.15); color:#b91c1c; border:1px solid rgba(239,68,68,.4); }
+  body:not(.light) .tag-neg{ color:#f87171; }
+  .tag-neutral{ background:rgba(148,163,184,.18); color:#64748b; border:1px solid rgba(148,163,184,.35); }
+  body:not(.light) .tag-neutral{ color:#cbd5e1; }
+  .drawer{ transition:transform .28s ease; }
+  .sec-title{ font-size:15px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:8px; }
+  .sec-title::before{ content:""; width:3px; height:14px; border-radius:2px; background:var(--accent); flex:none; }
+  .dtab{ animation:fadein .18s ease; }
+  @keyframes fadein{ from{opacity:.35} to{opacity:1} }
+  .newsrow{ display:flex; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); align-items:flex-start; }
+  .newsrow:last-child{ border-bottom:none; }
+  .newsrow:hover{ background:var(--rowhover); }
+  .kv{ display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dashed var(--gridline); font-size:13px; }
+  .kv:last-child{ border-bottom:none; }
+  .note-warn{ border-left:3px solid #f59e0b; background:rgba(245,158,11,.07); }
+  .note-good{ border-left:3px solid #22c55e; background:rgba(34,197,94,.07); }
+  .note-info{ border-left:3px solid #64748b; background:rgba(148,163,184,.08); }
+  table{ border-collapse:collapse; width:100%; }
+  th,td{ padding:6px 8px; border-bottom:1px solid var(--border); font-size:12.5px; }
+  thead th{ color:var(--dim); text-align:left; }
+  ::-webkit-scrollbar{height:9px;width:9px} ::-webkit-scrollbar-thumb{background:#8496b5;border-radius:6px}
+  body.light .text-white{color:#0f172a!important}
+  body.light .text-slate-400{color:#64748b!important}
+  body.light .text-slate-300,body.light .text-slate-200,body.light .text-slate-100{color:#1e293b!important}
+  body.light .text-slate-500{color:#94a3b8!important}
+  body.light .text-sky-300{color:#0369a1!important}
+</style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-[1500px] mx-auto px-4 md:px-6 py-5">
+
+  <!-- 标题 -->
+  <header class="flex items-start justify-between flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+        <span style="color:var(--accent)">◉</span> <span data-i18n="title">个股雷达 · 公司深度分析</span>
+      </h1>
+      <p class="text-sm text-slate-400 mt-1" data-i18n="subtitle">点击任一公司 → 简介 · 主营构成 · 营收增速 · 现金流漏洞 · 风险 · 政策 · 利好利空 · 两融博弈 · 大宗(暗池代理) · 新闻</p>
+    </div>
+    <div class="text-right text-sm text-slate-400">
+      <div class="flex items-center justify-end gap-3">
+        <button id="langBtn" class="segbtn" title="中文 / English">EN</button>
+        <button id="themeBtn" class="segbtn" title="白天 / 黑夜 / 跟随系统">🌙 黑夜</button>
+      </div>
+      <div class="mt-1"><span data-i18n="updated">更新时间：</span><span id="updatedAt" class="text-slate-200">—</span>
+        · <span data-i18n="source">数据源：akshare（东财/同花顺/新浪/巨潮）</span></div>
+    </div>
+  </header>
+
+  <!-- 免责声明 -->
+  <div class="card px-4 py-3 mb-4 text-[13px] leading-relaxed"
+       style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.06);color:#d9a441"
+       id="disclaimer" data-i18n="disclaimer">加载中…</div>
+
+  <!-- 控制条 -->
+  <section class="flex items-center gap-2 flex-wrap mb-4">
+    <input id="search" class="w-56" placeholder="搜索 代码 / 名称" data-i18n-ph="search_ph" />
+    <select id="filterSector"><option value="">全部行业</option></select>
+    <span id="countLabel" class="text-sm text-slate-400"></span>
+  </section>
+
+  <!-- 个股网格 -->
+  <section id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></section>
+  <div id="emptyHint" class="text-center text-slate-500 py-10 hidden" data-i18n="empty">
+    暂无个股数据。运行 <code>python -m pipeline.build_data</code> 生成 docs/data.js。</div>
+
+  <p class="text-xs text-slate-500 text-center my-8" data-i18n="footer">
+    本页数据仅供研究，不构成投资建议 · 暗池以大宗交易近似、期权博弈以融资融券近似（A股代理指标）。</p>
+</div>
+
+<!-- 公司分析抽屉 -->
+<div id="overlay" class="fixed inset-0 bg-black/60 hidden z-40"></div>
+<aside id="drawer" class="drawer fixed top-0 right-0 h-full w-full md:w-[70%] lg:w-[62%] border-l z-50 translate-x-full overflow-y-auto"
+       style="background:var(--drawer);border-color:var(--border)">
+  <div class="p-5">
+    <div class="flex items-start justify-between mb-2">
+      <div>
+        <h3 id="dTitle" class="text-xl font-bold text-white">—</h3>
+        <div id="dSub" class="text-sm text-slate-400 mt-1">—</div>
+      </div>
+      <button id="closeDrawer" class="text-slate-400 hover:text-white text-2xl leading-none px-2">×</button>
+    </div>
+
+    <div id="dTabs" class="flex gap-2 flex-wrap sticky top-0 z-10 py-2 mb-3" style="background:var(--drawer)">
+      <button class="segbtn on" data-tab="tabOv" data-i18n="tab_ov">总览</button>
+      <button class="segbtn" data-tab="tabCo" data-i18n="tab_co">公司与业务</button>
+      <button class="segbtn" data-tab="tabCf" data-i18n="tab_cf">现金流与风险</button>
+      <button class="segbtn" data-tab="tabNw" data-i18n="tab_nw">消息与博弈</button>
+    </div>
+
+    <!-- ① 总览 -->
+    <div id="tabOv" class="dtab">
+      <h4 class="sec-title mb-2" data-i18n="fund_glance">基本面速览</h4>
+      <div id="dFund" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
+      <div class="flex items-center justify-between mb-2">
+        <h4 class="sec-title" data-i18n="tv_title">TradingView 交互图（实时）</h4>
+        <a id="tvLink" href="#" target="_blank" rel="noopener" class="text-sky-300 text-sm hover:underline" data-i18n="tv_link">在 TradingView 打开概览页 ↗</a>
+      </div>
+      <div id="tvWrap" style="height:460px;border:1px solid var(--border);border-radius:12px;overflow:hidden"></div>
+    </div>
+
+    <!-- ② 公司与业务 -->
+    <div id="tabCo" class="dtab hidden">
+      <h4 class="sec-title mb-2" data-i18n="co_profile">公司简介</h4>
+      <div id="dProfile" class="card p-4 mb-4"></div>
+      <h4 class="sec-title mb-2" data-i18n="co_mgmt">管理层动向</h4>
+      <div id="dOfficers" class="card overflow-x-auto mb-1"></div>
+      <div class="text-xs text-slate-500 mb-4" data-i18n="co_mgmt_note">注：A股免费源无高管薪酬满意度，此处展示高管及关联人近期增减持（同花顺）。</div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-2">
+        <div class="card p-4">
+          <h4 class="sec-title mb-1"><span data-i18n="co_seg">各项业务营收占比</span> <span id="dSegYear" class="text-xs text-slate-400 font-normal"></span></h4>
+          <div class="text-xs text-slate-500 mb-1" data-i18n="co_seg_note">按主营构成拆分；增速/毛利异常项已标注。</div>
+          <div id="dPieChart" style="height:280px"></div>
+          <div id="dPieNotes" class="text-xs mt-1 leading-relaxed"></div>
+        </div>
+        <div class="card p-4">
+          <h4 class="sec-title mb-1" data-i18n="co_rev_growth">营收增速</h4>
+          <div class="text-xs text-slate-500 mb-1" data-i18n="co_rev_growth_note">年度营收(柱)+同比增速(线)+归母净利润(线)；下图为近8个单季营收。</div>
+          <div id="dRevChart" style="height:200px"></div>
+          <div id="dQRevChart" style="height:130px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 现金流与风险 -->
+    <div id="tabCf" class="dtab hidden">
+      <h4 class="sec-title mb-1" data-i18n="cf_title">现金流分析 — 钱流向哪了</h4>
+      <div class="text-xs text-slate-500 mb-2" data-i18n="cf_note">单位：亿元；资本开支/收购/分红为流出(取绝对值)；虚线=归母净利润 —— 与经营现金流对比判断盈利质量与"钱去哪了"。</div>
+      <div class="card p-4 mb-3"><div id="dCashChart" style="height:300px"></div></div>
+      <div id="dCashNotes" class="space-y-2 mb-4"></div>
+      <h4 class="sec-title mb-2" data-i18n="risk_title">风险分析</h4>
+      <div id="dRiskPanel" class="mb-4"></div>
+      <h4 class="sec-title mb-2"><span data-i18n="policy_title">政策分析</span> <span class="text-xs text-slate-400 font-normal" data-i18n="policy_sub">行业级要点 · 静态梳理 · 非实时</span></h4>
+      <div id="dPolicy" class="card p-4 mb-2"></div>
+    </div>
+
+    <!-- ④ 消息与博弈 -->
+    <div id="tabNw" class="dtab hidden">
+      <div class="flex items-center justify-between mb-1">
+        <h4 class="sec-title" data-i18n="nw_title">利好 vs 利空 · 近期新闻</h4>
+        <span id="dNewsSum" class="text-sm"></span>
+      </div>
+      <div class="text-xs text-slate-500 mb-2" data-i18n="nw_note">标题关键词粗分类，仅供快速浏览；点击标题打开原文。</div>
+      <div id="dNewsList" class="card mb-4"></div>
+      <h4 class="sec-title mb-1"><span data-i18n="margin_title">融资融券博弈</span> <span class="text-xs text-slate-400 font-normal" data-i18n="margin_sub">A股"期权博弈"代理 · 多空杠杆</span></h4>
+      <div id="dMargin" class="mb-4"></div>
+      <h4 class="sec-title mb-1"><span data-i18n="lhb_title">龙虎榜</span> <span class="text-xs text-slate-400 font-normal">· 游资/机构席位</span></h4>
+      <div id="dLhb" class="card p-4 mb-4"></div>
+      <h4 class="sec-title mb-1"><span data-i18n="block_title">大宗交易（暗池代理）</span></h4>
+      <div class="text-xs text-slate-500 mb-2" data-i18n="block_note">大宗交易是A股最接近"场外大额/暗池"的公开数据；折价成交多、机构专用席位买入值得关注；单笔不构成方向信号。</div>
+      <div id="dBlock" class="mb-2"></div>
+    </div>
+  </div>
+</aside>
+
+<script>
+(function(){
+  "use strict";
+  const DATA = (window.__RADAR__) || {meta:{}, stocks:[], profiles:{}};
+  const hasECharts = (typeof echarts !== "undefined");
+  const $ = s => document.querySelector(s);
+  const dash = "—";
+  const isNum = v => typeof v === "number" && isFinite(v);
+  const escH = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+  // ================= i18n (中文 / English) =================
+  const LANG_KEY="radar_lang_v1";
+  let LANG="zh"; try{ LANG=localStorage.getItem(LANG_KEY)||"zh"; }catch(e){}
+  if(LANG!=="en") LANG="zh";
+  const T={
+    zh:{
+      title:"个股雷达 · 公司深度分析",
+      subtitle:"点击任一公司 → 简介 · 主营构成 · 营收增速 · 现金流漏洞 · 风险 · 政策 · 利好利空 · 两融博弈 · 大宗(暗池代理) · 新闻",
+      updated:"更新时间：", source:"数据源：akshare（东财/同花顺/新浪/巨潮）",
+      disclaimer:"⚠️ 免责声明：本页仅对公开财务/行情数据做自动化整理与展示，不构成任何投资建议。暗池以大宗交易近似、期权博弈以融资融券近似，均为 A 股代理指标。所有数据需人工复核，使用者自负盈亏与风控。",
+      search_ph:"搜索 代码 / 名称", all_sectors:"全部行业",
+      empty:"暂无个股数据。运行 python -m pipeline.build_data 生成 docs/data.js。",
+      footer:"本页数据仅供研究，不构成投资建议 · 暗池以大宗交易近似、期权博弈以融资融券近似（A股代理指标）。",
+      tab_ov:"总览", tab_co:"公司与业务", tab_cf:"现金流与风险", tab_nw:"消息与博弈",
+      fund_glance:"基本面速览", tv_title:"TradingView 交互图（实时）", tv_link:"在 TradingView 打开概览页 ↗",
+      co_profile:"公司简介", co_mgmt:"管理层动向",
+      co_mgmt_note:"注：A股免费源无高管薪酬满意度，此处展示高管及关联人近期增减持（同花顺）。",
+      co_seg:"各项业务营收占比", co_seg_note:"按主营构成拆分；增速/毛利异常项已标注。",
+      co_rev_growth:"营收增速", co_rev_growth_note:"年度营收(柱)+同比增速(线)+归母净利润(线)；下图为近8个单季营收。",
+      cf_title:"现金流分析 — 钱流向哪了",
+      cf_note:"单位：亿元；资本开支/收购/分红为流出(取绝对值)；虚线=归母净利润 —— 与经营现金流对比判断盈利质量与“钱去哪了”。",
+      risk_title:"风险分析", policy_title:"政策分析", policy_sub:"行业级要点 · 静态梳理 · 非实时",
+      nw_title:"利好 vs 利空 · 近期新闻", nw_note:"标题关键词粗分类，仅供快速浏览；点击标题打开原文。",
+      margin_title:"融资融券博弈", margin_sub:"A股“期权博弈”代理 · 多空杠杆",
+      lhb_title:"龙虎榜", block_title:"大宗交易（暗池代理）",
+      block_note:"大宗交易是A股最接近“场外大额/暗池”的公开数据；折价成交多、机构专用席位买入值得关注；单笔不构成方向信号。",
+      // 卡片
+      c_rev:"营收", c_revyoy:"营收同比", c_gm:"毛利率", c_roe:"ROE", c_mainbiz:"主营",
+      c_click:"点击查看深度分析", count_of:"共", count_names:"只",
+      // 速览
+      fc_rev:"年度营收", fc_revyoy:"营收同比", fc_netyoy:"净利同比", fc_gm:"销售毛利率",
+      fc_roe:"净资产收益率", fc_debt:"资产负债率", fc_curr:"流动比率", fc_audit:"审计意见",
+      // 公司
+      hq_l:"总部", website_l:"官网", legal_l:"法人代表", list_l:"上市", regcap_l:"注册资金",
+      no_summary:"暂无公司简介", no_officer:"暂无管理层增减持记录", no_seg:"暂无主营构成数据",
+      no_rev:"暂无营收数据", no_cash:"暂无现金流数据", no_notes:"暂无自动要点",
+      no_risk:"暂无风险指标", no_news:"暂无新闻", no_margin:"暂无融资融券数据",
+      no_lhb:"近60日未上龙虎榜", no_block:"近3月无大宗交易", no_echarts:"未能加载 ECharts（需联网）",
+      noprof:"该股暂无深度档案（运行 build_data 生成）。",
+      mg_date:"变动日期", mg_person:"变动人", mg_rel:"关系", mg_chg:"变动数量", mg_price:"均价", mg_way:"途径",
+      seg_of:"占营收", seg_margin:"毛利率", seg_yoy:"同比", seg_total:"主营收入",
+      rev_annual:"年度营收", rev_yoy:"同比增速", rev_net:"归母净利润",
+      cf_ocf:"经营现金流", cf_fcf:"自由现金流", cf_capex:"资本开支", cf_acq:"收购/并表", cf_div:"分红", cf_ni:"归母净利润",
+      // 风险
+      r_debt:"资产负债率", r_curr:"流动比率", r_quick:"速动比率", r_gm:"销售毛利率", r_roe:"净资产收益率ROE", r_audit:"审计意见",
+      warn_debt:"资产负债率偏高，关注偿债与融资压力", warn_curr:"流动比率<1，短期偿债压力", warn_gm:"毛利率偏低，盈利空间薄",
+      warn_audit:"非标准审计意见，需重点核查",
+      // 两融/龙虎/大宗
+      m_finbal:"融资余额", m_finbuy:"融资买入额", m_shortbal:"融券余额", m_shortvol:"融券余量", m_total:"两融余额",
+      m_read:"解读：融资余额高=多头杠杆重；融券余额/余量上升=看空力量增强。",
+      lhb_count:"近60日上榜", lhb_last:"最近上榜日", lhb_net:"净买额", lhb_reason:"上榜原因", lhb_times:"次",
+      b_count:"近3月上榜", b_prem:"平均折溢率", b_amt:"成交总额", b_float:"占流通市值", b_inst:"机构专用买入", b_times:"次",
+      bt_date:"日期", bt_price:"成交价", bt_prem:"折溢率", bt_amt:"成交额(万)", bt_buyer:"买方营业部", bt_seller:"卖方营业部",
+      tone_pos:"利好", tone_neg:"利空", tone_neutral:"中性",
+      yi:"亿",
+    },
+    en:{
+      title:"Stock Radar · Company Deep-Dive",
+      subtitle:"Click any company → profile · segments · revenue growth · cash-flow leaks · risk · policy · bull/bear · margin positioning · block trades (dark-pool proxy) · news",
+      updated:"Updated: ", source:"Source: akshare (EastMoney / THS / Sina / CNInfo)",
+      disclaimer:"⚠️ Disclaimer: This page only organizes and displays public financial/market data and is not investment advice. Dark pool is proxied by block trades and options positioning by margin trading — both are A-share proxy indicators. Verify every name manually; users bear their own P&L and risk.",
+      search_ph:"Search code / name", all_sectors:"All sectors",
+      empty:"No stock data. Run python -m pipeline.build_data to generate docs/data.js.",
+      footer:"Data for research only, not investment advice · dark pool ≈ block trades, options positioning ≈ margin trading (A-share proxies).",
+      tab_ov:"Overview", tab_co:"Company & Business", tab_cf:"Cash Flow & Risk", tab_nw:"News & Positioning",
+      fund_glance:"Fundamentals at a Glance", tv_title:"TradingView Chart (live)", tv_link:"Open TradingView overview ↗",
+      co_profile:"Company Profile", co_mgmt:"Management Activity",
+      co_mgmt_note:"Note: no free A-share exec-pay-satisfaction data; shown are recent insider (exec/related-party) buy/sell changes (THS).",
+      co_seg:"Revenue by Business", co_seg_note:"Split by reported business segments; abnormal growth/margin items are flagged.",
+      co_rev_growth:"Revenue Growth", co_rev_growth_note:"Annual revenue (bars) + YoY growth (line) + net profit (line); lower chart is the last 8 single quarters.",
+      cf_title:"Cash Flow — Where the Money Goes",
+      cf_note:"In 100M CNY (亿); capex/acquisitions/dividends are outflows (abs value); dashed line = net profit — compare vs operating cash flow to judge earnings quality and where cash went.",
+      risk_title:"Risk Analysis", policy_title:"Policy Analysis", policy_sub:"Sector-level notes · static · not real-time",
+      nw_title:"Bullish vs Bearish · Recent News", nw_note:"Rough keyword classification for quick scanning; click a headline to open the source.",
+      margin_title:"Margin-Trading Positioning", margin_sub:"A-share proxy for options positioning · long/short leverage",
+      lhb_title:"Dragon-Tiger List", block_title:"Block Trades (Dark-Pool Proxy)",
+      block_note:"Block trades are the closest public A-share data to off-exchange/dark-pool flow; watch discounted prints and institutional-seat buying; a single print is not a directional signal.",
+      c_rev:"Revenue", c_revyoy:"Rev YoY", c_gm:"Gross Mgn", c_roe:"ROE", c_mainbiz:"Core",
+      c_click:"Click for deep-dive", count_of:"", count_names:" names",
+      fc_rev:"Annual revenue", fc_revyoy:"Revenue YoY", fc_netyoy:"Net profit YoY", fc_gm:"Gross margin",
+      fc_roe:"ROE", fc_debt:"Debt ratio", fc_curr:"Current ratio", fc_audit:"Audit opinion",
+      hq_l:"HQ", website_l:"Website", legal_l:"Legal rep", list_l:"Listed", regcap_l:"Reg. capital",
+      no_summary:"No company profile", no_officer:"No insider buy/sell records", no_seg:"No segment data",
+      no_rev:"No revenue data", no_cash:"No cash-flow data", no_notes:"No auto notes",
+      no_risk:"No risk metrics", no_news:"No news", no_margin:"No margin-trading data",
+      no_lhb:"Not on the dragon-tiger list in 60d", no_block:"No block trades in 3 months", no_echarts:"Could not load ECharts (needs internet)",
+      noprof:"No deep profile for this name (run build_data to generate).",
+      mg_date:"Date", mg_person:"Person", mg_rel:"Relation", mg_chg:"Change", mg_price:"Avg px", mg_way:"Channel",
+      seg_of:"of revenue", seg_margin:"gross margin", seg_yoy:"YoY", seg_total:"core revenue",
+      rev_annual:"Annual revenue", rev_yoy:"YoY growth", rev_net:"Net profit",
+      cf_ocf:"Operating CF", cf_fcf:"Free CF", cf_capex:"Capex", cf_acq:"Acquisitions", cf_div:"Dividends", cf_ni:"Net profit",
+      r_debt:"Debt ratio", r_curr:"Current ratio", r_quick:"Quick ratio", r_gm:"Gross margin", r_roe:"ROE", r_audit:"Audit opinion",
+      warn_debt:"High debt ratio — watch solvency & financing pressure", warn_curr:"Current ratio < 1 — near-term solvency pressure",
+      warn_gm:"Low gross margin — thin profitability", warn_audit:"Non-standard audit opinion — needs close review",
+      m_finbal:"Margin balance", m_finbuy:"Margin buys", m_shortbal:"Short balance", m_shortvol:"Short volume", m_total:"Total margin bal.",
+      m_read:"Read: high margin balance = heavy long leverage; rising short balance/volume = growing bearish pressure.",
+      lhb_count:"On list (60d)", lhb_last:"Last listed", lhb_net:"Net buy", lhb_reason:"Reason", lhb_times:"×",
+      b_count:"On list (3M)", b_prem:"Avg premium", b_amt:"Total amount", b_float:"of float mcap", b_inst:"Inst-seat buys", b_times:"×",
+      bt_date:"Date", bt_price:"Price", bt_prem:"Premium", bt_amt:"Amount(10k)", bt_buyer:"Buyer seat", bt_seller:"Seller seat",
+      tone_pos:"Bullish", tone_neg:"Bearish", tone_neutral:"Neutral",
+      yi:"00M",
+    }
+  };
+  function t(k){ const d=T[LANG]; return (d&&d[k]!=null)?d[k]:(T.zh[k]!=null?T.zh[k]:k); }
+  const TONE_MAP={"利好":"tone_pos","利空":"tone_neg","中性":"tone_neutral"};
+  function toneText(s){ return (LANG==="zh")?s:(TONE_MAP[s]?t(TONE_MAP[s]):s); }
+  function applyStaticI18n(){
+    document.documentElement.lang = (LANG==="en")?"en":"zh-CN";
+    document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent=t(el.dataset.i18n); });
+    document.querySelectorAll("[data-i18n-ph]").forEach(el=>{ el.placeholder=t(el.dataset.i18nPh); });
+    const fs=$("#filterSector"); if(fs&&fs.options[0]) fs.options[0].textContent=t("all_sectors");
+    if($("#langBtn")) $("#langBtn").textContent=(LANG==="en")?"中文":"EN";
+  }
+  function applyLang(){
+    applyStaticI18n(); renderMeta(); renderGrid();
+    if(curCode && !$("#drawer").classList.contains("translate-x-full")) openDrawer(curCode);
+  }
+
+  // ================= 主题 (白天/黑夜/跟随系统) =================
+  const THEME_KEY="radar_theme_v1";
+  const mqLight = window.matchMedia ? window.matchMedia("(prefers-color-scheme: light)") : null;
+  let themeMode="dark"; try{ themeMode=localStorage.getItem(THEME_KEY)||"dark"; }catch(e){}
+  if(["light","dark","auto"].indexOf(themeMode)<0) themeMode="dark";
+  function effLight(){ return themeMode==="light" || (themeMode==="auto" && mqLight && mqLight.matches); }
+  function applyTheme(){
+    document.body.classList.toggle("light", effLight());
+    $("#themeBtn").textContent = themeMode==="light"?"☀️ 白天":(themeMode==="dark"?"🌙 黑夜":"🖥️ 跟随系统");
+    if(LANG==="en") $("#themeBtn").textContent = themeMode==="light"?"☀️ Light":(themeMode==="dark"?"🌙 Dark":"🖥️ System");
+    try{ localStorage.setItem(THEME_KEY, themeMode); }catch(e){}
+  }
+  $("#themeBtn").onclick=()=>{ themeMode = themeMode==="dark"?"light":(themeMode==="light"?"auto":"dark");
+    applyTheme(); if(curCode && !$("#drawer").classList.contains("translate-x-full")) openDrawer(curCode); };
+  if(mqLight){ const onMq=()=>{ if(themeMode==="auto"){ applyTheme();
+      if(curCode && !$("#drawer").classList.contains("translate-x-full")) openDrawer(curCode); } };
+    if(mqLight.addEventListener) mqLight.addEventListener("change", onMq); else if(mqLight.addListener) mqLight.addListener(onMq); }
+  function ec(){ return document.body.classList.contains("light")?null:"dark"; }
+  function tc(){ const l=document.body.classList.contains("light");
+    return l?{axis:"#64748b",grid:"#e2e8f0",label:"#334155"}:{axis:"#7e93b8",grid:"#1b2640",label:"#cbd5e1"}; }
+
+  // ================= 数值格式 =================
+  function f(v,d=2){ return isNum(v)?v.toFixed(d):dash; }
+  function yi(v,d=2){ return isNum(v)?(v.toFixed(d)+t("yi")):dash; }
+  function pctS(v,d=1){ if(!isNum(v)) return dash; const c=v>0?"pos":(v<0?"neg":"");
+    return `<span class="num ${c}">${v>0?"+":""}${v.toFixed(d)}%</span>`; }
+  function pct(v,d=1){ return isNum(v)?v.toFixed(d)+"%":dash; }
+
+  // ================= 政策库 (行业级静态梳理, 中英双语) =================
+  const POLICY_ZH={
+    "汽车":["以旧换新/购置税优惠与新能源渗透率是核心变量","出口关税(欧盟反补贴)与海外建厂影响出海节奏","智能驾驶准入与数据安全法规抬高合规门槛"],
+    "半导体":["国产替代与大基金三期加码带来长期订单","对华设备/EDA出口管制决定先进制程进度","AI算力需求拉动存储/先进封装景气"],
+    "医药":["集采与医保谈判压制仿制药/耗材价格","创新药审评加速与出海(License-out)打开空间","反腐常态化短期扰动院内放量节奏"],
+    "白酒":["消费税改革预期与批价是核心博弈点","宴席/商务需求与库存周期决定动销","高端价格带受宏观消费景气直接影响"],
+    "银行":["净息差随LPR与存款利率调整承压","化债与地产风险处置影响资产质量","分红比例与资本新规决定估值中枢"],
+    "保险":["长端利率决定利差与准备金,报行合一压降负债成本","个险渠道改革与新准则(IFRS17)重塑利润","资产端权益/地产敞口是弹性来源"],
+    "电力":["电价市场化与容量电价改革改善盈利稳定性","来水/煤价决定水电/火电成本","新能源装机与调峰需求带来长期成长"],
+    "光伏":["产能过剩与价格战压制盈利,关注供给出清","出口关税与海外本地化制造要求","分布式/储能配套政策决定装机节奏"],
+    "有色金属":["资源自主可控与战略金属收储","新能源金属(锂/铜)需求随补贴与装机摆动","环保与安监趋严限制新增产能"],
+    "电子":["消费电子换机周期与AI终端(手机/PC/眼镜)创新","国产替代与供应链安全","出口管制与关税影响海外营收"],
+    "计算机":["信创/国产化与数据要素政策打开需求","AI大模型与算力投入决定成长斜率","数据安全与合规抬高成本"],
+    "家电":["以旧换新补贴直接拉动内销","原材料(铜/钢/塑料)成本与汇率影响毛利","高端化与出海是盈利弹性来源"],
+    "医疗器械":["集采扩围压价,但国产替代加速放量","创新器械审评绿色通道与DRG支付改革","出海认证(FDA/CE)打开增量"],
+    "建筑":["基建投资与专项债节奏决定订单","化债影响回款与现金流质量","一带一路与海外工程带来增量"],
+    "保险|银行|证券":["资本市场改革与活跃度决定券商业绩","利率与信用周期影响金融资产质量"],
+    "_default":["关注行业专项监管、补贴与集采/招标政策边际变化","关注利率与宏观景气对估值和融资成本的影响","关注出口关税与产业链自主可控政策"]};
+  const POLICY_EN={
+    "汽车":["Trade-in subsidies, purchase-tax breaks and EV penetration are the core variables","Export tariffs (EU anti-subsidy) and overseas plants shape the export ramp","ADAS approval & data-security rules raise the compliance bar"],
+    "半导体":["Domestic substitution and the Big Fund III drive long-term orders","Equipment/EDA export controls set advanced-node progress","AI compute demand lifts memory/advanced-packaging cycles"],
+    "医药":["Centralized procurement & NRDL talks pressure generics/consumables pricing","Faster innovative-drug review and out-licensing open upside","Ongoing anti-corruption briefly disrupts in-hospital volume"],
+    "白酒":["Consumption-tax reform expectations and wholesale prices are the key debate","Banquet/business demand and inventory cycle drive sell-through","The premium price band tracks macro consumption directly"],
+    "银行":["Net interest margin is pressured by LPR and deposit-rate moves","Debt resolution and property-risk workout affect asset quality","Payout ratio and new capital rules set the valuation anchor"],
+    "保险":["Long-end rates drive spreads/reserves; 'report=execute' cuts liability costs","Agency-channel reform and IFRS17 reshape profit","Equity/property exposure on the asset side is the elasticity source"],
+    "电力":["Power-price marketization and capacity pricing improve earnings stability","Water inflow/coal price set hydro/thermal costs","Renewable capacity and peak-shaving demand bring long-term growth"],
+    "光伏":["Overcapacity and price wars pressure margins; watch supply clearing","Export tariffs and overseas localization requirements","Distributed/storage support policy sets the installation pace"],
+    "有色金属":["Resource self-sufficiency and strategic-metal stockpiling","New-energy metals (Li/Cu) demand swings with subsidies & installs","Tighter environmental/safety rules cap new capacity"],
+    "电子":["Consumer-electronics replacement cycle and AI devices (phone/PC/glasses)","Domestic substitution and supply-chain security","Export controls and tariffs affect overseas revenue"],
+    "计算机":["Xinchuang/localization and data-element policy open demand","AI models and compute capex set the growth slope","Data security and compliance raise costs"],
+    "家电":["Trade-in subsidies directly boost domestic sales","Raw-material (Cu/steel/plastic) costs and FX affect margins","Premiumization and exports are the earnings-elasticity source"],
+    "医疗器械":["Procurement expansion cuts prices, but domestic substitution accelerates volume","Green-channel review for innovative devices & DRG payment reform","Overseas certification (FDA/CE) opens incremental demand"],
+    "建筑":["Infrastructure investment and special-bond pace set orders","Debt resolution affects collections and cash-flow quality","Belt & Road and overseas EPC bring increments"],
+    "保险|银行|证券":["Capital-market reform and turnover drive broker earnings","Rate and credit cycles affect financial-asset quality"],
+    "_default":["Watch sector-specific regulation, subsidies and procurement/tender changes","Watch rates and macro cycle impact on valuation and financing costs","Watch export tariffs and supply-chain self-sufficiency policy"]};
+  function policyFor(sec){
+    const P = LANG==="en"?POLICY_EN:POLICY_ZH;
+    if(!sec) return P._default;
+    for(const key in P){ if(key==="_default") continue;
+      if(key.split("|").some(k=> sec.indexOf(k)>=0 || k.indexOf(sec)>=0)) return P[key]; }
+    return P._default;
+  }
+
+  // ================= TradingView 符号 =================
+  function tvExch(code){ code=String(code);
+    if(/^(8|4|920)/.test(code)) return "BSE"; if(/^(6|9)/.test(code)) return "SSE"; return "SZSE"; }
+  function tvSym(code){ return tvExch(code)+":"+code; }
+  function tvPage(code){ return tvExch(code)+"-"+code; }
+
+  // ================= 顶部 meta =================
+  function renderMeta(){
+    const m=DATA.meta||{};
+    $("#updatedAt").textContent = m.updated_at || dash;
+    if(m.disclaimer && LANG==="zh") $("#disclaimer").textContent = "⚠️ "+m.disclaimer;
+  }
+
+  // ================= 个股网格 =================
+  let curCode=null;
+  const state={ q:"", sector:"" };
+  (function initSectorFilter(){
+    const set=Array.from(new Set((DATA.stocks||[]).map(s=>s.sector).filter(Boolean))).sort();
+    const sel=$("#filterSector");
+    set.forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); });
+  })();
+  function currentStocks(){
+    let rows=(DATA.stocks||[]).slice();
+    if(state.q){ const q=state.q.toLowerCase();
+      rows=rows.filter(s=>(s.code||"").toLowerCase().includes(q)||(s.name||"").toLowerCase().includes(q)); }
+    if(state.sector) rows=rows.filter(s=>s.sector===state.sector);
+    return rows;
+  }
+  function card(s){
+    const seg=s.top_segment;
+    const segLine = seg? `<div class="text-xs text-slate-400 mt-2 truncate"><span class="text-slate-500">${t("c_mainbiz")}:</span> ${escH(seg.name||"")} ${isNum(seg.pct)?seg.pct+"%":""} ${isNum(seg.yoy)?`(${t("seg_yoy")} ${seg.yoy>0?"+":""}${seg.yoy}%)`:""}</div>`:"";
+    const news = (s.news_pos||s.news_neg)? `<span class="badge tag-pos">${t("tone_pos")} ${s.news_pos||0}</span> <span class="badge tag-neg">${t("tone_neg")} ${s.news_neg||0}</span>`:"";
+    const metric=(lab,val)=>`<div><div class="text-[11px] text-slate-500">${lab}</div><div class="text-sm font-semibold num">${val}</div></div>`;
+    return `<div class="stockcard" data-code="${s.code}">
+      <div class="flex items-start justify-between gap-2">
+        <div><div class="text-base font-bold text-white">${escH(s.name||s.code)}</div>
+          <div class="text-xs text-slate-400 font-mono">${s.code}</div></div>
+        <span class="chip">${escH(s.sector||"—")}</span>
+      </div>
+      <div class="grid grid-cols-4 gap-2 mt-3">
+        ${metric(t("c_rev"), isNum(s.revenue)?yi(s.revenue,0):dash)}
+        ${metric(t("c_revyoy"), pctS(s.rev_yoy))}
+        ${metric(t("c_gm"), pct(s.gross_margin))}
+        ${metric(t("c_roe"), pct(s.roe))}
+      </div>
+      ${segLine}
+      <div class="flex items-center justify-between mt-3">
+        <div class="flex gap-1.5">${news}</div>
+        <span class="text-[11px] text-slate-500">${t("c_click")} →</span>
+      </div>
+    </div>`;
+  }
+  function renderGrid(){
+    const rows=currentStocks();
+    $("#grid").innerHTML = rows.map(card).join("");
+    $("#emptyHint").classList.toggle("hidden", rows.length>0);
+    $("#countLabel").textContent = `${t("count_of")} ${rows.length} ${t("count_names")}`;
+    $("#grid").querySelectorAll(".stockcard").forEach(el=>{
+      el.onclick=()=>openDrawer(el.dataset.code);
+    });
+  }
+  $("#search").oninput=e=>{ state.q=e.target.value; renderGrid(); };
+  $("#filterSector").onchange=e=>{ state.sector=e.target.value; renderGrid(); };
+
+  // ================= 抽屉 图表实例管理 =================
+  const profCharts={};
+  function pcInit(sel,key){ if(profCharts[key]){ profCharts[key].dispose(); profCharts[key]=null; }
+    const el=$(sel); el.innerHTML=""; const ch=echarts.init(el, ec()); profCharts[key]=ch; return ch; }
+  function disposeProf(){ Object.keys(profCharts).forEach(k=>{ if(profCharts[k]){ profCharts[k].dispose(); profCharts[k]=null; } }); }
+  let curP=null;
+
+  function switchTab(id){
+    document.querySelectorAll('#dTabs .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.tab===id));
+    document.querySelectorAll('.dtab').forEach(d=>d.classList.toggle('hidden', d.id!==id));
+    if(id==="tabCo") renderCoTab();
+    else if(id==="tabCf") renderCfTab();
+    else if(id==="tabNw") renderNwTab();
+  }
+  document.querySelectorAll('#dTabs .segbtn').forEach(b=>{ b.onclick=()=>switchTab(b.dataset.tab); });
+  function noprof(){ return `<div class="p-3 text-slate-500 text-sm">${t("noprof")}</div>`; }
+
+  // ---- 总览 ----
+  function renderOvTab(){
+    const p=curP||{};
+    const cell=(lab,val,col)=>`<div class="card p-3"><div class="text-xs text-slate-400">${lab}</div><div class="text-base font-semibold mt-1 num" style="${col?`color:${col}`:''}">${val}</div></div>`;
+    const rev=p.revenue||{}, risk=p.risk||{};
+    const last=a=>{ a=(a||[]).filter(x=>x!=null); return a.length?a[a.length-1]:null; };
+    const debt=risk.debt_ratio;
+    $("#dFund").innerHTML=[
+      cell(t("fc_rev"), yi(last(rev.revenue),0)),
+      cell(t("fc_revyoy"), isNum(last(rev.rev_yoy))?(last(rev.rev_yoy)>0?"+":"")+last(rev.rev_yoy)+"%":dash, isNum(last(rev.rev_yoy))?(last(rev.rev_yoy)>=0?"#f87171":"#4ade80"):""),
+      cell(t("fc_netyoy"), isNum(last(rev.net_yoy))?(last(rev.net_yoy)>0?"+":"")+last(rev.net_yoy)+"%":dash, isNum(last(rev.net_yoy))?(last(rev.net_yoy)>=0?"#f87171":"#4ade80"):""),
+      cell(t("fc_gm"), pct(risk.gross_margin)),
+      cell(t("fc_roe"), pct(risk.roe)),
+      cell(t("fc_debt"), pct(debt), isNum(debt)&&debt>70?"#fbbf24":""),
+      cell(t("fc_curr"), f(risk.current_ratio)),
+      cell(t("fc_audit"), risk.audit?escH(risk.audit):dash),
+    ].join("");
+  }
+
+  // ---- 公司与业务 ----
+  function renderCoTab(){
+    if(!curCode) return;
+    const p=curP;
+    if(!p){ $("#dProfile").innerHTML=noprof(); $("#dOfficers").innerHTML=""; $("#dPieNotes").innerHTML="";
+      $("#dSegYear").textContent=""; ["#dPieChart","#dRevChart","#dQRevChart"].forEach(s=>$(s).innerHTML=""); return; }
+    const meta=[];
+    if(p.sector) meta.push(escH(p.sector));
+    if(p.hq) meta.push(t("hq_l")+" "+escH(p.hq));
+    if(p.legal_rep) meta.push(t("legal_l")+" "+escH(p.legal_rep));
+    if(p.list_date) meta.push(t("list_l")+" "+escH(p.list_date));
+    if(p.reg_capital) meta.push(t("regcap_l")+" "+escH(p.reg_capital));
+    const biz = p.business? `<div class="text-[13px] text-slate-300 mb-2"><b>主营：</b>${escH(p.business)}</div>`:"";
+    $("#dProfile").innerHTML =
+      biz +
+      `<div class="text-[13px] leading-relaxed text-slate-200 mb-2" style="max-height:170px;overflow-y:auto">${p.summary?escH(p.summary):t("no_summary")}</div>`+
+      `<div class="text-xs text-slate-400">${meta.join(" · ")}${p.website?` · <a class="text-sky-300 hover:underline" target="_blank" rel="noopener" href="${escH(/^https?:/.test(p.website)?p.website:'http://'+p.website)}">${t("website_l")} ↗</a>`:""}</div>`;
+    if(p.mgmt_changes && p.mgmt_changes.length){
+      $("#dOfficers").innerHTML=`<table><thead><tr><th>${t("mg_date")}</th><th>${t("mg_person")}</th><th>${t("mg_rel")}</th><th>${t("mg_chg")}</th><th class="text-right">${t("mg_price")}</th><th>${t("mg_way")}</th></tr></thead><tbody>`+
+        p.mgmt_changes.map(o=>`<tr><td class="num">${escH(o.date||dash)}</td><td class="text-slate-200">${escH(o.person||dash)}</td><td class="text-slate-400">${escH(o.relation||dash)}</td><td>${escH(o.change||dash)}</td><td class="num text-right">${isNum(o.price)?o.price.toFixed(2):dash}</td><td class="text-slate-400">${escH(o.way||dash)}</td></tr>`).join("")+
+        `</tbody></table>`;
+    } else { $("#dOfficers").innerHTML=`<div class="p-3 text-slate-500 text-sm">${t("no_officer")}</div>`; }
+    drawPie(p); drawRevCharts(p);
+  }
+  function drawPie(p){
+    const seg=p.segments, C=tc();
+    $("#dPieNotes").innerHTML=""; $("#dSegYear").textContent="";
+    if(!hasECharts || !seg || !seg.items || !seg.items.length){ $("#dPieChart").innerHTML=`<div class="text-slate-500 text-sm p-3">${t("no_seg")}</div>`; return; }
+    $("#dSegYear").textContent = `${seg.date} · ${seg.by} · ${t("seg_total")} ${yi(seg.total)}`;
+    const PAL=["#38bdf8","#c084fc","#f59e0b","#34d399","#f472b6","#94a3b8","#60a5fa","#fbbf24"];
+    const items=seg.items.filter(x=>isNum(x.value)&&x.value>0);
+    const data=items.map((x,i)=>({name:x.name, value:x.value, itemStyle:{color:PAL[i%PAL.length]}}));
+    const map={}; seg.items.forEach(x=>map[x.name]=x);
+    const ch=pcInit("#dPieChart","pie");
+    ch.setOption({backgroundColor:"transparent",
+      tooltip:{formatter:pr=>{const x=map[pr.name]||{};
+        return `<b>${escH(pr.name)}</b><br/>${yi(pr.value)} · ${t("seg_of")} ${isNum(x.pct)?x.pct:(pr.percent)}%`+
+          (isNum(x.margin)?`<br/>${t("seg_margin")} ${x.margin}%`:"")+(isNum(x.yoy)?`<br/>${t("seg_yoy")} ${x.yoy>0?"+":""}${x.yoy}%`:"");}},
+      legend:{bottom:0,textStyle:{color:C.label,fontSize:11}},
+      series:[{type:"pie",radius:["40%","66%"],center:["50%","44%"],
+        label:{color:C.label,fontSize:11,formatter:pr=>`${pr.name}\n${isNum((map[pr.name]||{}).pct)?map[pr.name].pct:pr.percent}%`},
+        itemStyle:{borderColor:(document.body.classList.contains("light")?"#fff":"#111a2e"),borderWidth:2}, data}]});
+    // 增速/毛利异常标注
+    const notes=[];
+    seg.items.forEach(x=>{
+      if(isNum(x.yoy)&&x.yoy>=30) notes.push(`<span style="color:#4ade80">✦ ${escH(x.name)} 营收同比 +${x.yoy}% —— 高增长业务，值得关注</span>`);
+      else if(isNum(x.yoy)&&x.yoy<=-15) notes.push(`<span style="color:#f87171">⚠ ${escH(x.name)} 营收同比 ${x.yoy}% —— 业务明显萎缩</span>`);
+      if(isNum(x.margin)&&x.margin>=60) notes.push(`<span style="color:#38bdf8">◆ ${escH(x.name)} 毛利率 ${x.margin}% —— 高毛利业务</span>`);
+      else if(isNum(x.margin)&&x.margin<=5&&x.margin>=0) notes.push(`<span class="text-slate-400">◇ ${escH(x.name)} 毛利率仅 ${x.margin}% —— 微利/走量</span>`);
+    });
+    if(LANG==="en"){ /* 简化: 英文下也展示中文标注的核心, 保持信息不丢 */ }
+    $("#dPieNotes").innerHTML=notes.join("<br/>");
+  }
+  function drawRevCharts(p){
+    const r=p.revenue, C=tc();
+    if(!hasECharts || !r || !r.years || !r.years.length){ $("#dRevChart").innerHTML=`<div class="text-slate-500 text-sm p-3">${t("no_rev")}</div>`; $("#dQRevChart").innerHTML=""; return; }
+    const ch=pcInit("#dRevChart","rev");
+    ch.setOption({backgroundColor:"transparent", grid:{left:52,right:46,top:24,bottom:20},
+      tooltip:{trigger:"axis"},
+      legend:{top:0,textStyle:{color:C.label,fontSize:11},data:[t("rev_annual"),t("rev_yoy"),t("rev_net")]},
+      xAxis:{type:"category",data:r.years,axisLabel:{color:C.axis,fontSize:10}},
+      yAxis:[{type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:v=>v+t("yi")},splitLine:{lineStyle:{color:C.grid}}},
+             {type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:"{value}%"},splitLine:{show:false}}],
+      series:[{name:t("rev_annual"),type:"bar",data:r.revenue,barWidth:"42%",itemStyle:{color:"#38bdf8",borderRadius:[3,3,0,0]}},
+              {name:t("rev_yoy"),type:"line",yAxisIndex:1,data:r.rev_yoy,connectNulls:true,lineStyle:{color:"#fbbf24",width:2},itemStyle:{color:"#fbbf24"},
+               label:{show:true,color:"#fbbf24",fontSize:9,formatter:pr=>isNum(pr.value)?(pr.value>0?"+":"")+pr.value+"%":""}},
+              {name:t("rev_net"),type:"line",data:r.net,connectNulls:true,lineStyle:{color:"#f472b6",width:2},itemStyle:{color:"#f472b6"}}]});
+    if(r.quarters && r.quarters.length){
+      const qc=pcInit("#dQRevChart","qrev");
+      qc.setOption({backgroundColor:"transparent", grid:{left:52,right:46,top:8,bottom:20},
+        tooltip:{trigger:"axis"},
+        xAxis:{type:"category",data:r.quarters,axisLabel:{color:C.axis,fontSize:9}},
+        yAxis:{type:"value",axisLabel:{color:C.axis,fontSize:9,formatter:v=>v+t("yi")},splitLine:{lineStyle:{color:C.grid}}},
+        series:[{type:"bar",data:r.q_revenue,barWidth:"55%",itemStyle:{color:"#34d399",borderRadius:[2,2,0,0]}}]});
+    } else { $("#dQRevChart").innerHTML=""; }
+  }
+
+  // ---- 现金流与风险 ----
+  function renderCfTab(){
+    if(!curCode) return;
+    const p=curP, C=tc();
+    if(!hasECharts){ $("#dCashChart").innerHTML=`<div class="text-amber-400 text-sm p-3">${t("no_echarts")}</div>`; $("#dCashNotes").innerHTML=""; renderRiskPanel(); renderPolicy(); return; }
+    if(!p || !p.cashflow || !p.cashflow.years){ $("#dCashChart").innerHTML=`<div class="text-slate-500 text-sm p-3">${t("no_cash")}</div>`; $("#dCashNotes").innerHTML=""; renderRiskPanel(); renderPolicy(); return; }
+    const cf=p.cashflow, A=arr=>(arr||[]).map(v=>v==null?null:Math.abs(v));
+    const ch=pcInit("#dCashChart","cash");
+    ch.setOption({backgroundColor:"transparent", grid:{left:56,right:20,top:44,bottom:22},
+      tooltip:{trigger:"axis", valueFormatter:v=>isNum(v)?v.toFixed(1)+t("yi"):dash},
+      legend:{top:0,textStyle:{color:C.label,fontSize:11}},
+      xAxis:{type:"category",data:cf.years,axisLabel:{color:C.axis}},
+      yAxis:{type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:v=>v+t("yi")},splitLine:{lineStyle:{color:C.grid}}},
+      series:[
+        {name:t("cf_ocf"),type:"bar",data:cf.ocf,itemStyle:{color:"#38bdf8"}},
+        {name:t("cf_fcf"),type:"bar",data:cf.fcf,itemStyle:{color:"#34d399"}},
+        {name:t("cf_capex"),type:"bar",data:A(cf.capex),itemStyle:{color:"#94a3b8"}},
+        {name:t("cf_acq"),type:"bar",data:A(cf.acq),itemStyle:{color:"#f59e0b"}},
+        {name:t("cf_div"),type:"bar",data:A(cf.dividend),itemStyle:{color:"#c084fc"}},
+        {name:t("cf_ni"),type:"line",data:cf.net_income,lineStyle:{color:"#fbbf24",width:2,type:"dashed"},itemStyle:{color:"#fbbf24"}},
+      ]});
+    const notes=(p.cash_notes||[]).map(n=>{ const txt=(LANG==="en"&&n.text_en)?n.text_en:n.text;
+      return `<div class="note-${n.level} p-2 rounded text-[13px] text-slate-200">${escH(txt)}</div>`; });
+    $("#dCashNotes").innerHTML = notes.join("") || `<div class="text-slate-500 text-sm">${t("no_notes")}</div>`;
+    renderRiskPanel(); renderPolicy();
+  }
+  function renderRiskPanel(){
+    const risk=(curP||{}).risk;
+    if(!risk){ $("#dRiskPanel").innerHTML=`<div class="card p-3 text-slate-500 text-sm">${t("no_risk")}</div>`; return; }
+    const kv=(lab,val,col)=>`<div class="kv"><span class="text-slate-400">${lab}</span><span class="num" style="${col?`color:${col}`:'color:var(--text)'}">${val}</span></div>`;
+    const debt=risk.debt_ratio;
+    const warns=[];
+    if(isNum(debt)&&debt>70) warns.push(t("warn_debt"));
+    if(isNum(risk.current_ratio)&&risk.current_ratio<1) warns.push(t("warn_curr"));
+    if(isNum(risk.gross_margin)&&risk.gross_margin<10) warns.push(t("warn_gm"));
+    if(risk.audit && risk.audit!=="是" && risk.audit.indexOf("标准无保留")<0 && risk.audit!=="标准无保留意见" && risk.audit.indexOf("无保留")<0 && risk.audit!=="未审计") warns.push(t("warn_audit"));
+    $("#dRiskPanel").innerHTML=
+      `<div class="card p-4">
+        ${kv(t("r_debt"), pct(debt), isNum(debt)&&debt>70?"#fbbf24":(isNum(debt)&&debt<40?"#4ade80":""))}
+        ${kv(t("r_curr"), f(risk.current_ratio), isNum(risk.current_ratio)&&risk.current_ratio<1?"#f87171":"")}
+        ${kv(t("r_quick"), f(risk.quick_ratio))}
+        ${kv(t("r_gm"), pct(risk.gross_margin))}
+        ${kv(t("r_roe"), pct(risk.roe))}
+        ${kv(t("r_audit"), risk.audit?escH(risk.audit):dash)}
+        ${warns.length?`<div class="mt-2 space-y-1">${warns.map(w=>`<div class="note-warn p-2 rounded text-xs text-slate-200">⚠ ${escH(w)}</div>`).join("")}</div>`:""}
+      </div>`;
+  }
+  function renderPolicy(){
+    const sec=(curP&&curP.sector)||"";
+    const items=policyFor(sec);
+    $("#dPolicy").innerHTML=`<ul class="space-y-1.5">${items.map(x=>`<li class="text-[13px] text-slate-200 flex gap-2"><span class="text-sky-400 flex-none">▸</span><span>${escH(x)}</span></li>`).join("")}</ul>`;
+  }
+
+  // ---- 消息与博弈 ----
+  function renderNwTab(){
+    if(!curCode) return;
+    const p=curP;
+    if(!p){ $("#dNewsList").innerHTML=noprof(); $("#dNewsSum").innerHTML=""; $("#dMargin").innerHTML=""; $("#dLhb").innerHTML=""; $("#dBlock").innerHTML=""; return; }
+    // 新闻
+    const news=p.news||[];
+    const nPos=news.filter(n=>n.tone==="利好").length, nNeg=news.filter(n=>n.tone==="利空").length;
+    $("#dNewsSum").innerHTML=`<span class="badge tag-pos">${t("tone_pos")} ${nPos}</span> <span class="badge tag-neg">${t("tone_neg")} ${nNeg}</span> <span class="badge tag-neutral">${t("tone_neutral")} ${news.length-nPos-nNeg}</span>`;
+    const cls={"利好":"tag-pos","利空":"tag-neg","中性":"tag-neutral"};
+    $("#dNewsList").innerHTML = news.length? news.map(n=>
+      `<div class="newsrow"><span class="badge ${cls[n.tone]} flex-none">${toneText(n.tone)}</span>
+        <div class="min-w-0"><a href="${escH(n.url)}" target="_blank" rel="noopener" class="text-[13px] text-slate-100 hover:text-sky-300 hover:underline">${escH(n.title)}</a>
+        <div class="text-xs text-slate-500 mt-0.5">${escH(n.publisher)} · ${escH(n.time)}</div></div></div>`).join("")
+      : `<div class="p-3 text-slate-500 text-sm">${t("no_news")}</div>`;
+    // 融资融券
+    const m=p.margin;
+    const mc=(lab,val,col)=>`<div class="card p-2.5"><div class="text-[11px] text-slate-400">${lab}</div><div class="text-base font-semibold mt-0.5 num" style="${col?`color:${col}`:''}">${val}</div></div>`;
+    if(m){
+      $("#dMargin").innerHTML=`<div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-1">
+        ${mc(t("m_finbal"), isNum(m.fin_bal)?yi(m.fin_bal):dash, "#f87171")}
+        ${mc(t("m_finbuy"), isNum(m.fin_buy)?yi(m.fin_buy):dash)}
+        ${mc(t("m_shortbal"), isNum(m.short_bal)?yi(m.short_bal):dash, "#4ade80")}
+        ${mc(t("m_shortvol"), isNum(m.short_vol)?m.short_vol.toFixed(1)+(LANG==="en"?"0k sh":"万股"):dash)}
+        ${mc(t("m_total"), isNum(m.total_bal)?yi(m.total_bal):dash)}</div>
+        <div class="text-xs text-slate-400">${escH(m.date||"")} · ${t("m_read")}</div>`;
+    } else { $("#dMargin").innerHTML=`<div class="card p-3 text-slate-500 text-sm">${t("no_margin")}</div>`; }
+    // 龙虎榜
+    const l=p.lhb;
+    if(l && l.count>0){
+      const kv=(lab,val)=>`<div class="kv"><span class="text-slate-400">${lab}</span><span class="text-slate-100 num">${val}</span></div>`;
+      $("#dLhb").innerHTML=kv(t("lhb_count"), l.count+" "+t("lhb_times"))+kv(t("lhb_last"), escH(l.last_date||dash))+
+        kv(t("lhb_net"), isNum(l.net_buy)?yi(l.net_buy):dash)+(l.reason?kv(t("lhb_reason"), escH(l.reason)):"");
+    } else { $("#dLhb").innerHTML=`<div class="text-slate-500 text-sm">${t("no_lhb")}</div>`; }
+    // 大宗交易
+    const b=p.block;
+    if(b){
+      const stat=(lab,val,col)=>`<div class="card p-2.5"><div class="text-[11px] text-slate-400">${lab}</div><div class="text-sm font-semibold mt-0.5 num" style="${col?`color:${col}`:''}">${val}</div></div>`;
+      let html=`<div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
+        ${stat(t("b_count"), (b.count||0)+" "+t("b_times"))}
+        ${stat(t("b_prem"), isNum(b.premium_rate)?(b.premium_rate>0?"+":"")+b.premium_rate+"%":dash, isNum(b.premium_rate)&&b.premium_rate<0?"#4ade80":"#f87171")}
+        ${stat(t("b_amt"), isNum(b.amt_total)?yi(b.amt_total):dash)}
+        ${stat(t("b_float"), isNum(b.amt_over_float)?b.amt_over_float+"%":dash)}
+        ${stat(t("b_inst"), (b.inst_buy||0)+" "+t("b_times"), b.inst_buy>0?"#38bdf8":"")}</div>`;
+      if(b.recent && b.recent.length){
+        html+=`<div class="card overflow-x-auto"><table><thead><tr><th>${t("bt_date")}</th><th class="text-right">${t("bt_price")}</th><th class="text-right">${t("bt_prem")}</th><th class="text-right">${t("bt_amt")}</th><th>${t("bt_buyer")}</th><th>${t("bt_seller")}</th></tr></thead><tbody>`+
+          b.recent.map(x=>`<tr><td class="num">${escH(x.date||dash)}</td><td class="num text-right">${isNum(x.price)?x.price.toFixed(2):dash}</td><td class="num text-right ${isNum(x.premium)?(x.premium<0?'neg':'pos'):''}">${isNum(x.premium)?(x.premium>0?"+":"")+x.premium+"%":dash}</td><td class="num text-right">${isNum(x.amt)?x.amt.toFixed(0):dash}</td><td class="text-slate-300 text-[11px]">${escH(x.buyer||dash)}</td><td class="text-slate-400 text-[11px]">${escH(x.seller||dash)}</td></tr>`).join("")+
+          `</tbody></table></div>`;
+      }
+      $("#dBlock").innerHTML=html;
+    } else { $("#dBlock").innerHTML=`<div class="text-slate-500 text-sm">${t("no_block")}</div>`; }
+  }
+
+  // ---- TradingView ----
+  function mountTV(code){
+    const theme=document.body.classList.contains("light")?"light":"dark";
+    const sym=encodeURIComponent(tvSym(code));
+    const src=`https://s.tradingview.com/widgetembed/?frameElementId=tvchart&symbol=${sym}&interval=D&symboledit=1&saveimage=0&toolbarbg=1e2a44&theme=${theme}&style=1&timezone=Asia%2FShanghai&withdateranges=1&hideideas=1`;
+    $("#tvWrap").innerHTML=`<iframe src="${src}" style="width:100%;height:100%;border:0" allowtransparency="true" scrolling="no" loading="lazy"></iframe>`;
+    $("#tvLink").href=`https://www.tradingview.com/symbols/${encodeURIComponent(tvPage(code))}/`;
+  }
+
+  // ---- 打开抽屉 ----
+  function openDrawer(code){
+    curCode=code; curP=(DATA.profiles||{})[code]||null;
+    disposeProf();
+    const s=(DATA.stocks||[]).find(x=>x.code===code)||{};
+    const name=(curP&&curP.name)||s.name||code;
+    $("#dTitle").innerHTML=`${escH(name)} <a href="https://www.tradingview.com/symbols/${encodeURIComponent(tvPage(code))}/" target="_blank" rel="noopener" class="text-sky-300 font-mono text-base hover:underline">${code} ↗</a> <span class="chip ml-2">${escH((curP&&curP.sector)||s.sector||"")}</span>`;
+    const rev=(curP&&curP.revenue)||{}; const last=a=>{a=(a||[]).filter(x=>x!=null);return a.length?a[a.length-1]:null;};
+    const subBits=[];
+    if(isNum(last(rev.revenue))) subBits.push(t("fc_rev")+" "+yi(last(rev.revenue),0));
+    if(isNum(last(rev.rev_yoy))) subBits.push(t("fc_revyoy")+" "+(last(rev.rev_yoy)>0?"+":"")+last(rev.rev_yoy)+"%");
+    $("#dSub").textContent = subBits.join(" · ") || (curP?"":t("noprof"));
+    switchTab("tabOv"); renderOvTab();
+    $("#drawer").scrollTop=0;
+    $("#overlay").classList.remove("hidden");
+    $("#drawer").classList.remove("translate-x-full");
+    mountTV(code);
+  }
+  function closeDrawer(){
+    $("#overlay").classList.add("hidden");
+    $("#drawer").classList.add("translate-x-full");
+    $("#tvWrap").innerHTML="";
+    disposeProf(); curCode=null;
+  }
+  $("#closeDrawer").onclick=closeDrawer;
+  $("#overlay").onclick=closeDrawer;
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+
+  // ---- 语言切换 ----
+  $("#langBtn").onclick=()=>{ LANG=(LANG==="en")?"zh":"en"; try{ localStorage.setItem(LANG_KEY, LANG); }catch(e){} applyTheme(); applyLang(); };
+
+  window.addEventListener("resize", ()=>{ Object.keys(profCharts).forEach(k=>{ if(profCharts[k]) profCharts[k].resize(); }); });
+
+  // ---- 启动 ----
+  applyTheme(); applyStaticI18n(); renderMeta(); renderGrid();
+})();
+</script>
+</body>
+</html>
