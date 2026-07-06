@@ -130,7 +130,7 @@
     </div>
     <div class="text-right text-sm text-slate-400">
       <div class="flex items-center justify-end gap-3">
-        <button id="refreshBtn" class="segbtn" title="刷新数据 · Refresh — 重新载入数据文件(联网更新请先跑 pipeline)">🔄</button>
+        <button id="refreshBtn" class="segbtn" title="刷新数据 · Refresh — 重新载入数据文件(联网更新请先跑 pipeline)" style="border-color:var(--accent);color:var(--accent);font-weight:600">↻ 刷新</button>
         <button id="marketBtn" class="segbtn" title="A股 / 美股">🇨🇳 A股</button>
         <button id="langBtn" class="segbtn" title="中文 / English">EN</button>
         <button id="themeBtn" class="segbtn" title="白天 / 黑夜 / 跟随系统">🌙 黑夜</button>
@@ -1605,7 +1605,7 @@
   let _refreshing=false;
   async function refreshData(){
     if(_refreshing) return; _refreshing=true;
-    const btn=$("#refreshBtn"); if(btn){ btn.textContent="⏳"; btn.disabled=true; }
+    const btn=$("#refreshBtn"); if(btn){ btn.textContent=(LANG==="en"?"↻ …":"↻ 刷新中…"); btn.disabled=true; }
     showToast(LANG==="en"?"Reloading data files…":"正在重新载入数据文件…");
     const bust="?t="+Date.now();
     try{
@@ -1622,7 +1622,7 @@
     }catch(e){
       showToast(LANG==="en"?"Refresh failed, reloading page…":"刷新失败，正在整页重载…");
       setTimeout(()=>location.reload(), 700);
-    }finally{ _refreshing=false; if(btn){ btn.textContent="🔄"; btn.disabled=false; } }
+    }finally{ _refreshing=false; if(btn){ btn.textContent=(LANG==="en"?"↻ Refresh":"↻ 刷新"); btn.disabled=false; } }
   }
   { const rb=$("#refreshBtn"); if(rb) rb.onclick=refreshData; }
 
