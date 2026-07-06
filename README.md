@@ -66,7 +66,7 @@ python -m pipeline.build_data us AAPL MSFT NVDA      # 或只拉指定代码
 python -m pipeline.sector                            # 板块热力/情绪叠加/资金流评分/四象限
 ```
 
-跑完会重写对应的 `docs/data.js` / `docs/data_us.js`，刷新页面即可，顶部切 A股/美股。想换成自己的股票池，编辑 `pipeline/watchlist.py`（A 股）或 `pipeline/watchlist_us.py`（美股）再重跑。
+跑完会重写对应的 `docs/data.js` / `docs/data_us.js` / `docs/sector.js`。页面**右上角有 🔄 刷新按钮**：重跑管道后点它即可**就地重载最新数据文件**（不整页刷新、不丢当前位置）。注意静态页无法自己联网抓数——🔄 只是重载文件，真正更新数据仍需先跑上面的管道。顶部切 A股/美股。想换成自己的股票池，编辑 `pipeline/watchlist.py`（A 股）或 `pipeline/watchlist_us.py`（美股）再重跑。
 
 **美股与 A 股的差异**：美股用真实数据，`期权博弈` 是**真实期权持仓**（P/C 比 + 最大痛点），`暗池` 是**FINRA 场外空头成交占比**（都不是代理）；`风险` 用 ISS 治理评分 + 做空/偿债；`管理层` 展示高管及薪酬（Yahoo）；`各项业务营收占比` 因免费源无分部营收，改为"每 1 美元营收去了哪"的成本流向拆解。单位为百万美元($M)。
 

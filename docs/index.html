@@ -130,6 +130,7 @@
     </div>
     <div class="text-right text-sm text-slate-400">
       <div class="flex items-center justify-end gap-3">
+        <button id="refreshBtn" class="segbtn" title="刷新数据 · Refresh — 重新载入数据文件(联网更新请先跑 pipeline)">🔄</button>
         <button id="marketBtn" class="segbtn" title="A股 / 美股">🇨🇳 A股</button>
         <button id="langBtn" class="segbtn" title="中文 / English">EN</button>
         <button id="themeBtn" class="segbtn" title="白天 / 黑夜 / 跟随系统">🌙 黑夜</button>
@@ -351,7 +352,7 @@
   "use strict";
   const DATASETS = { A: (window.__RADAR__)||{meta:{}, stocks:[], profiles:{}},
                      US:(window.__RADAR_US__)||{meta:{}, stocks:[], profiles:{}} };
-  const SECT = window.__SECTORS__ || {meta:{},industry:[],concept:[],ranking:{},quadrant:{}};
+  let SECT = window.__SECTORS__ || {meta:{},industry:[],concept:[],ranking:{},quadrant:{}};
   const MARKET_KEY="radar_market_v1";
   let MARKET="A"; try{ MARKET=localStorage.getItem(MARKET_KEY)||"A"; }catch(e){}
   if(MARKET!=="US") MARKET="A";
@@ -1151,7 +1152,7 @@
   const VIEW_KEY="radar_view_v2";
   let VIEW="sector"; try{ VIEW=localStorage.getItem(VIEW_KEY)||"sector"; }catch(e){}
   if(["sector","stocks"].indexOf(VIEW)<0) VIEW="sector";
-  const SECT_HIST = window.__SECTOR_HISTORY__ || [];
+  let SECT_HIST = window.__SECTOR_HISTORY__ || [];
   // 板块专用的"亿"格式 (数据恒为 A股人民币, 不随 isUS() 变化)
   function syi(v,d=2){ if(!isNum(v)) return dash;
     if(LANG==="en"){ const b=v/10; return (Math.abs(b)>=100?b.toFixed(0):b.toFixed(1))+"B"; }
@@ -1593,9 +1594,42 @@
     Object.keys(sectCharts).forEach(k=>{ if(sectCharts[k]) sectCharts[k].resize(); }); });
 
   // ---- 启动 ----
+  // ---- 手动刷新: 重新载入数据文件(cache-bust)并就地重绘; 失败则整页重载 ----
+  // 注意: 静态页无法联网重抓, "更新数据"需先跑 python -m pipeline.build_data / .sector 重新生成这些文件。
+  function _loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script");
+    s.src=src; s.onload=()=>{ s.remove(); res(); }; s.onerror=()=>{ s.remove(); rej(new Error(src)); };
+    document.head.appendChild(s); }); }
+  let _toastTimer=null;
+  function showToast(msg){ const el=$("#toast"); if(!el) return; el.textContent=msg; el.style.opacity="1";
+    clearTimeout(_toastTimer); _toastTimer=setTimeout(()=>{ el.style.opacity="0"; }, 2800); }
+  let _refreshing=false;
+  async function refreshData(){
+    if(_refreshing) return; _refreshing=true;
+    const btn=$("#refreshBtn"); if(btn){ btn.textContent="⏳"; btn.disabled=true; }
+    showToast(LANG==="en"?"Reloading data files…":"正在重新载入数据文件…");
+    const bust="?t="+Date.now();
+    try{
+      await Promise.all(["data.js","data_us.js","sector.js","sector_history.js"].map(f=>_loadScript(f+bust)));
+      DATASETS.A=(window.__RADAR__)||{meta:{},stocks:[],profiles:{}};
+      DATASETS.US=(window.__RADAR_US__)||{meta:{},stocks:[],profiles:{}};
+      DATA=DATASETS[MARKET];
+      SECT=window.__SECTORS__||{meta:{},industry:[],concept:[],ranking:{},quadrant:{}};
+      SECT_HIST=window.__SECTOR_HISTORY__||[];
+      boardFilter=null;
+      buildSectorFilter(); renderMeta(); renderGrid(); renderView();
+      const ts=(SECT.meta&&SECT.meta.updated_at)||(DATA.meta&&DATA.meta.updated_at)||"";
+      showToast((LANG==="en"?"Data reloaded":"数据已刷新")+(ts?(" · "+ts):""));
+    }catch(e){
+      showToast(LANG==="en"?"Refresh failed, reloading page…":"刷新失败，正在整页重载…");
+      setTimeout(()=>location.reload(), 700);
+    }finally{ _refreshing=false; if(btn){ btn.textContent="🔄"; btn.disabled=false; } }
+  }
+  { const rb=$("#refreshBtn"); if(rb) rb.onclick=refreshData; }
+
   applyTheme(); applyStaticI18n(); setMarketBtnLabel(); buildSectorFilter(); renderMeta(); renderGrid();
   renderView();
 })();
 </script>
+<div id="toast" style="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px -8px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s;z-index:60"></div>
 </body>
 </html>
