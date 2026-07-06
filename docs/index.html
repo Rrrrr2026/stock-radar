@@ -713,8 +713,10 @@
 
   // ================= 顶部 meta =================
   function renderMeta(){
-    const m=DATA.meta||{};
-    $("#updatedAt").textContent = m.updated_at || dash;
+    const m=DATA.meta||{}, sm=(SECT&&SECT.meta)||{};
+    // 生成时间 + 板块数据的交易日(数据"新旧"看这个交易日, 而非生成时间)
+    const td = sm.trade_date ? ("　·　"+(LANG==="en"?"board trade date ":"板块交易日 ")+sm.trade_date) : "";
+    $("#updatedAt").textContent = (m.updated_at || dash) + td;
     if(m.disclaimer && LANG==="zh") $("#disclaimer").textContent = "⚠️ "+m.disclaimer;
   }
 
